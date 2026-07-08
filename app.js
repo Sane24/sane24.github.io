@@ -1,2304 +1,1418 @@
-// GENERATED from dc-runtime/src/*.ts — do not edit. Rebuild with `cd dc-runtime && bun run build`.
-"use strict";
-(() => {
-  var __defProp = Object.defineProperty;
-  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+// Portfolio logic — Design Component class, loaded by the DC runtime.
+// Exposed as a factory so the inline <script data-dc-script> can build it
+// with the runtime-injected DCLogic base class and React.
+window.__PortfolioComponent = function (DCLogic, React) {
+class Component extends DCLogic {
+  state = { dark: false, selected: null, course: null, mode: null, cornerReady: false };
 
-  // src/react.ts
-  function getReact() {
-    const R = window.React;
-    if (!R) throw new Error("dc-runtime: window.React is not available yet");
-    return R;
-  }
-  function getReactDOM() {
-    const RD = window.ReactDOM;
-    if (!RD) throw new Error("dc-runtime: window.ReactDOM is not available yet");
-    return RD;
-  }
-  var h = ((...args) => getReact().createElement(
-    ...args
-  ));
+  _score = 0;
+  _lookAccent = { blueprint: '#2C3BEA', riso: '#EA4E2B', analog: '#B5623A', brutal: '#4A3AEE', noir: '#B8945A' };
+  _secRAF = []; _secCleanup = [];
 
-  // src/parse.ts
-  function parseDcDocument(doc) {
-    const dc = doc.querySelector("x-dc");
-    if (!dc) return null;
-    const scriptEl = doc.querySelector("script[data-dc-script]");
-    const { props, preview } = parseDataProps(
-      scriptEl?.getAttribute("data-props") ?? null
-    );
-    return {
-      template: dc.innerHTML,
-      js: scriptEl ? scriptEl.textContent || "" : "",
-      props,
-      preview
-    };
-  }
-  function parseDcText(src) {
-    const openMatch = /<x-dc(?:\s[^>]*)?>/.exec(src);
-    if (!openMatch) return null;
-    const close = src.lastIndexOf("</x-dc>");
-    if (close === -1 || close < openMatch.index) return null;
-    const template = src.slice(openMatch.index + openMatch[0].length, close);
-    const doc = new DOMParser().parseFromString(src, "text/html");
-    const scriptEl = doc.querySelector("script[data-dc-script]");
-    const { props, preview } = parseDataProps(
-      scriptEl?.getAttribute("data-props") ?? null
-    );
-    return {
-      template,
-      js: scriptEl ? scriptEl.textContent || "" : "",
-      props,
-      preview
-    };
-  }
-  function parseDataProps(raw) {
-    if (!raw) return { props: null, preview: null };
-    let parsed;
+  componentDidMount() {
+    // hero background mode
+    this._mode = this.props.heroMode || 'play';
+    this.setState({ mode: this._mode });
+    setTimeout(() => this._paintPills(), 0);
+
+    // theme from storage
     try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return { props: null, preview: null };
-    }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { props: null, preview: null };
-    }
-    const obj = parsed;
-    const preview = obj.$preview && typeof obj.$preview === "object" ? obj.$preview : null;
-    const rest = {};
-    for (const k of Object.keys(obj)) {
-      if (k[0] !== "$") rest[k] = obj[k];
-    }
-    return { props: Object.keys(rest).length ? rest : null, preview };
-  }
-  function dcNameFromPath(pathname) {
-    let p = pathname || "";
-    try {
-      p = decodeURIComponent(p);
-    } catch {
-    }
-    const base = p.split("/").pop() || "Root";
-    return base.replace(/\.dc\.html$/, "").replace(/\.html?$/, "") || "Root";
-  }
+      const saved = localStorage.getItem('sane-theme');
+      const dark = saved ? saved === 'dark' : false;
+      this.setState({ dark });
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    } catch (e) {}
 
-  // src/boot.ts
-  var BASE_CSS = `
-    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
-      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
-      border-radius:2px;box-sizing:border-box;overflow:hidden}
-    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
-    html.sc-dc-streaming .sc-placeholder,
-    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
-      background:color-mix(in srgb,currentColor 5%,transparent);
-      border-color:transparent}
-    html.sc-dc-streaming .sc-placeholder::before,
-    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
-      position:absolute;inset:0;pointer-events:none;
-      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
-      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
-    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
-    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
-      background:color-mix(in srgb,currentColor 8%,transparent)}
-    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
-      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
-    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
-      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
-      border-radius:2px;box-sizing:border-box;color:transparent;
-      user-select:none}
-    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
-      color:color-mix(in srgb,currentColor 50%,transparent);
-      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
-      padding:0 3px}
-    .sc-host.sc-has-error{position:relative}
-    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
-      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
-      border-radius:4px;white-space:pre-wrap;pointer-events:none}
-    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts \u2014 keep both
-       in sync until dc-runtime regains a build step. */
-    @media print {
-      @page { margin: 0.5cm; }
-      figure, table { break-inside: avoid; }
-      #dc-root, #dc-root > .sc-host { height: auto; }
-      *, *::before, *::after {
-        print-color-adjust: exact; -webkit-print-color-adjust: exact;
-        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
-        animation-delay: -99s !important; animation-duration: .001s !important;
-        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
-        animation-play-state: running !important; transition-duration: 0s !important;
+    // hero scene from storage
+    try {
+      this._look = 'blueprint';
+    } catch (e) { this._look = 'blueprint'; }
+    delete document.documentElement.dataset.look;
+    setTimeout(() => this._paintLooks(), 0);
+
+    // scroll reveals — content is visible by default; hide via JS first so a
+    // throttled/non-painting environment never leaves it invisible.
+    const els = Array.from(document.querySelectorAll('[data-reveal]'));
+    const reveal = (el) => { el.style.opacity = '1'; el.style.transform = 'none'; };
+    els.forEach((el) => { el.style.opacity = '0'; el.style.transform = 'translateY(28px)'; });
+    if ('IntersectionObserver' in window) {
+      this._io = new IntersectionObserver((entries) => {
+        entries.forEach((en) => { if (en.isIntersecting) { reveal(en.target); this._io.unobserve(en.target); } });
+      }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+      els.forEach((el) => this._io.observe(el));
+      // safety: force everything visible after a moment (no transition, so it
+      // can't get stuck "pending" in a throttled/non-painting environment).
+      this._safety = setTimeout(() => els.forEach((el) => {
+        el.style.transition = 'none';
+        el.style.opacity = '1';
+        el.style.transform = 'none';
+      }), 1400);
+    } else {
+      els.forEach(reveal);
+    }
+
+    // auto party-popper: fire one burst when the Leadership section scrolls into view
+    if ('IntersectionObserver' in window) {
+      const lead = document.getElementById('popper-sentinel');
+      if (lead) {
+        this._popIo = new IntersectionObserver((entries) => {
+          entries.forEach((en) => {
+            if (!en.isIntersecting) { this._popSeenOut = true; return; }
+            // only fire on a genuine scroll-in (must have been out of view first)
+            if (this._popSeenOut) { this._popIo.disconnect(); setTimeout(() => { this._autoPop = true; }, 400); }
+          });
+        }, { threshold: 0, rootMargin: '0px 0px -12% 0px' });
+        this._popIo.observe(lead);
       }
     }
-  `;
-  var FULL_PAGE_CSS = "html,body{height:100%;margin:0}#dc-root,#dc-root>.sc-host{height:100%}";
-  function rootNameForDocument(doc, loc) {
-    let bootPath = loc.pathname || "";
-    if (!/\.dc\.html?$/i.test(safeDecode(bootPath))) {
-      try {
-        bootPath = new URL(doc.baseURI || "/").pathname;
-      } catch {
-      }
-    }
-    return dcNameFromPath(bootPath);
+
+    this._startCanvas();
+    setTimeout(() => {
+      this._sectionCanvas(this._aboutCv, this._scAbout);
+      this._sectionCanvas(this._armCv, this._scArm);
+      this._sectionCanvas(this._floraL, this._scFlora);
+      this._sectionCanvas(this._floraR, this._scFlora);
+      this._sectionCanvas(this._confettiCv, this._scConfetti);
+      this._sectionCanvas(this._grassCv, this._scGrass);
+      const rose = "<svg xmlns='http://www.w3.org/2000/svg' width='34' height='34' viewBox='0 0 34 34'><g transform='translate(17,17)'><g fill='#2C3BEA'><ellipse cx='0' cy='-10' rx='5' ry='7'/><ellipse cx='0' cy='-10' rx='5' ry='7' transform='rotate(72)'/><ellipse cx='0' cy='-10' rx='5' ry='7' transform='rotate(144)'/><ellipse cx='0' cy='-10' rx='5' ry='7' transform='rotate(216)'/><ellipse cx='0' cy='-10' rx='5' ry='7' transform='rotate(288)'/></g><g fill='#6E83FF'><ellipse cx='0' cy='-5' rx='3.2' ry='4.6' transform='rotate(36)'/><ellipse cx='0' cy='-5' rx='3.2' ry='4.6' transform='rotate(108)'/><ellipse cx='0' cy='-5' rx='3.2' ry='4.6' transform='rotate(180)'/><ellipse cx='0' cy='-5' rx='3.2' ry='4.6' transform='rotate(252)'/><ellipse cx='0' cy='-5' rx='3.2' ry='4.6' transform='rotate(324)'/></g><circle cx='0' cy='0' r='3' fill='#1E2AA8'/><circle cx='0' cy='0' r='1.3' fill='#9DB0FF'/></g></svg>";
+      const roseCur = 'url("data:image/svg+xml,' + encodeURIComponent(rose) + '") 16 16, auto';
+      const pj = document.getElementById('projects');
+      if (pj) pj.style.cursor = roseCur;
+      [this._floraL, this._floraR, this._grassCv].forEach((cv) => { if (cv) { cv.style.cursor = roseCur; cv.style.pointerEvents = 'auto'; } });
+    }, 0);
   }
-  function safeDecode(s) {
-    try {
-      return decodeURIComponent(s);
-    } catch {
-      return s;
+
+  componentDidUpdate(prev) {
+    if (prev.heroMode !== this.props.heroMode && this.props.heroMode) {
+      this._mode = this.props.heroMode;
     }
+    if (prev.look !== this.props.look && this.props.look) { this.setLook(this.props.look); }
+    this._paintPills();
+    this._paintLooks();
   }
-  function boot(runtime, doc = document) {
-    const parsed = parseDcDocument(doc);
-    if (!parsed) return null;
-    const React = getReact();
-    const rootName = rootNameForDocument(doc, location);
-    runtime.markFetched(rootName);
-    runtime.setRootName(rootName);
-    runtime.adoptParsed(rootName, parsed);
-    fetch(location.href).then((res) => res.ok ? res.text() : "").then((t) => {
-      const raw = t ? parseDcText(t) : null;
-      if (raw?.template) runtime.updateHtml(rootName, raw.template);
-    }).catch(() => {
-    });
-    const dc = doc.querySelector("x-dc");
-    const hostEl = doc.createElement("div");
-    hostEl.id = "dc-root";
-    dc.replaceWith(hostEl);
-    if (!parsed.preview) {
-      const s = doc.createElement("style");
-      s.textContent = FULL_PAGE_CSS;
-      doc.head.appendChild(s);
-    }
-    const Root = runtime.getDC(rootName);
-    const entry = runtime.registry.get(rootName);
-    function StandaloneRoot() {
-      const [, setTick] = React.useState(0);
-      React.useEffect(() => {
-        const sub = () => setTick((n) => n + 1);
-        entry.subs.add(sub);
-        return () => {
-          entry.subs.delete(sub);
+
+  componentWillUnmount() {
+    if (this._io) this._io.disconnect();
+    if (this._safety) clearTimeout(this._safety);
+    if (this._raf) cancelAnimationFrame(this._raf);
+    if (this._onResize) window.removeEventListener('resize', this._onResize);
+    if (this._onMove) window.removeEventListener('pointermove', this._onMove);
+    if (this._ro) this._ro.disconnect();
+    (this._secRAF || []).forEach((id) => cancelAnimationFrame(id));
+    (this._secCleanup || []).forEach((fn) => { try { fn(); } catch (e) {} });
+  }
+
+  _startCanvas() {
+    const cv = this._canvas;
+    if (!cv) return;
+    const ctx = cv.getContext('2d');
+    let w = 0, h = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const mouse = { x: -9999, y: -9999, vx: 0, vy: 0, on: false };
+    const gap = 38;
+    const resize = () => {
+      const r = cv.getBoundingClientRect();
+      w = r.width; h = r.height;
+      cv.width = w * dpr; cv.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // spawn the ball just after the "E" in SANE, matching the N–E gap
+      const letters = document.querySelectorAll('#sane-letters > *');
+      const b = this._ball;
+      if (b && w > 0 && letters.length >= 4 && letters[3].firstElementChild && letters[2].firstElementChild) {
+        const Eb = letters[3].firstElementChild.getBoundingClientRect();
+        const Nb = letters[2].firstElementChild.getBoundingClientRect();
+        const g = Math.max(24, Eb.left - Nb.right);
+        this._spawn = {
+          x: Math.min(w - b.r - 8, (Eb.right - r.left) + g + b.r),
+          y: (Eb.top - r.top) + Eb.height / 2,
         };
-      }, []);
-      const defaults = React.useMemo(() => {
-        const d = {};
-        for (const k in entry.propsMeta || {}) {
-          const v = entry.propsMeta?.[k]?.default;
-          if (v !== void 0) d[k] = v;
-        }
-        return d;
-      }, [entry.propsMeta]);
-      return h(Root, { ...defaults, ...entry.propOverrides || {} });
-    }
-    const ReactDOM = getReactDOM();
-    if (ReactDOM.createRoot)
-      ReactDOM.createRoot(hostEl).render(h(StandaloneRoot));
-    else ReactDOM.render(h(StandaloneRoot), hostEl);
-    return rootName;
-  }
+        if (!this._spawned) { b.x = this._spawn.x; b.y = this._spawn.y; b.vx = 0; b.vy = 0; this._spawned = true; }
+      }
+      // park the F1 car just to the right of the subtitle line
+      const sub = document.getElementById('hero-subtitle');
+      const c = this._car;
+      if (c && w > 0 && sub) {
+        const sr = sub.getBoundingClientRect();
+        this._carHome = {
+          x: Math.min(w - 40, (sr.right - r.left) + 46),
+          y: (sr.top - r.top) + sr.height / 2,
+        };
+        if (!this._carParked) { c.x = this._carHome.x; c.y = this._carHome.y; c.speed = 0; this._carParked = true; }
+      }
+    };
+    resize();
+    this._onResize = resize;
+    window.addEventListener('resize', resize);
+    // canvas often measures 0×0 before first layout — re-measure on next frame + on any size change
+    requestAnimationFrame(resize);
+    if ('ResizeObserver' in window) { this._ro = new ResizeObserver(() => resize()); this._ro.observe(cv); }
+    this._onMove = (e) => {
+      const r = cv.getBoundingClientRect();
+      const nx = e.clientX - r.left, ny = e.clientY - r.top;
+      mouse.vx = nx - mouse.x; mouse.vy = ny - mouse.y;
+      mouse.x = nx; mouse.y = ny;
+      mouse.on = nx >= 0 && nx <= w && ny >= 0 && ny <= h;
+    };
+    window.addEventListener('pointermove', this._onMove);
 
-  // src/expr.ts
-  var IDENT_RE = /^[A-Za-z_$][A-Za-z0-9_$]*/;
-  var NUMBER_RE = /^-?\d+(\.\d+)?$/;
-  function resolve(vals, src) {
-    const expr = String(src).trim();
-    if (!expr) return void 0;
-    if (expr[0] === "(" && expr[expr.length - 1] === ")" && parensWrapWhole(expr)) {
-      return resolve(vals, expr.slice(1, -1));
-    }
-    const eq = findTopLevelEquality(expr);
-    if (eq) {
-      const lv = resolve(vals, expr.slice(0, eq.index));
-      const rv = resolve(vals, expr.slice(eq.index + eq.op.length));
-      switch (eq.op) {
-        case "===":
-          return lv === rv;
-        case "!==":
-          return lv !== rv;
-        case "==":
-          return lv == rv;
-        default:
-          return lv != rv;
-      }
-    }
-    if (expr[0] === "!") return !resolve(vals, expr.slice(1));
-    if (expr === "true") return true;
-    if (expr === "false") return false;
-    if (expr === "null") return null;
-    if (expr === "undefined") return void 0;
-    if (NUMBER_RE.test(expr)) return Number(expr);
-    if (expr.length >= 2 && (expr[0] === '"' || expr[0] === "'") && expr[expr.length - 1] === expr[0]) {
-      return expr.slice(1, -1);
-    }
-    return resolvePath(vals, expr);
-  }
-  function parensWrapWhole(expr) {
-    let depth = 0;
-    for (let i = 0; i < expr.length - 1; i++) {
-      if (expr[i] === "(") depth++;
-      else if (expr[i] === ")") {
-        depth--;
-        if (depth === 0) return false;
-      }
-    }
-    return true;
-  }
-  function findTopLevelEquality(expr) {
-    let depth = 0;
-    for (let i = 0; i < expr.length; i++) {
-      const c = expr[i];
-      if (c === "[" || c === "(") depth++;
-      else if (c === "]" || c === ")") depth--;
-      else if (depth === 0 && (c === "=" || c === "!") && expr[i + 1] === "=") {
-        if (i > 0 && (expr[i - 1] === "=" || expr[i - 1] === "!")) continue;
-        if (!expr.slice(0, i).trim()) continue;
-        const op = expr[i + 2] === "=" ? c + "==" : c + "=";
-        return { index: i, op };
-      }
-    }
-    return null;
-  }
-  function resolvePath(vals, expr) {
-    const head = expr.match(IDENT_RE);
-    if (!head) return void 0;
-    let cur = vals == null ? void 0 : vals[head[0]];
-    let i = head[0].length;
-    while (i < expr.length) {
-      if (expr[i] === ".") {
-        const m = expr.slice(i + 1).match(IDENT_RE) || expr.slice(i + 1).match(/^\d+/);
-        if (!m) return void 0;
-        cur = cur == null ? void 0 : cur[m[0]];
-        i += 1 + m[0].length;
-      } else if (expr[i] === "[") {
-        let depth = 1;
-        let j = i + 1;
-        while (j < expr.length && depth > 0) {
-          if (expr[j] === "[") depth++;
-          else if (expr[j] === "]") {
-            depth--;
-            if (depth === 0) break;
-          }
-          j++;
-        }
-        if (depth !== 0) return void 0;
-        const key = resolve(vals, expr.slice(i + 1, j));
-        cur = cur == null ? void 0 : cur[key];
-        i = j + 1;
+    // ---- interactive objects (share the dot grid as a base) ----
+    const car = { x: w * 0.6 || 300, y: h * 0.285 || 160, angle: 0, speed: 0 };
+    const carTrail = [];
+    const ball = { x: w * 0.62 || 460, y: h * 0.42 || 200, vx: 0, vy: 0, rot: 0, r: 22, shot: 0 };
+    this._car = car; this._ball = ball;
+    const pal = {};
+
+    const goalGeom = () => { const gh = Math.min(180, h * 0.34); return { gy0: h / 2 - gh / 2, gy1: h / 2 + gh / 2, netX: w - 26 }; };
+
+    const updateCar = () => {
+      const dx = mouse.x - car.x, dy = mouse.y - car.y;
+      const dist = Math.hypot(dx, dy);
+      // drive only while the cursor is on-canvas AND meaningfully away; otherwise park
+      if (mouse.on && dist > 8) {
+        const target = Math.atan2(dy, dx);
+        let da = target - car.angle;
+        da = Math.atan2(Math.sin(da), Math.cos(da));
+        car.angle += da * 0.1;
+        const want = Math.min(dist * 0.08, 8);
+        car.speed += (want - car.speed) * 0.12;
       } else {
-        return void 0;
+        car.speed += (0 - car.speed) * 0.25;
+        if (car.speed < 0.06) car.speed = 0;
       }
-    }
-    return cur;
-  }
+      car.x += Math.cos(car.angle) * car.speed;
+      car.y += Math.sin(car.angle) * car.speed;
+      car.x = Math.max(34, Math.min(w - 34, car.x));
+      car.y = Math.max(34, Math.min(h - 34, car.y));
+      // racing-line trail grows while moving, fades once parked
+      if (car.speed > 0.7) {
+        carTrail.push({ x: car.x - Math.cos(car.angle) * 20, y: car.y - Math.sin(car.angle) * 20 });
+        if (carTrail.length > 30) carTrail.shift();
+      } else if (carTrail.length) {
+        carTrail.shift();
+      }
+    };
 
-  // src/encode.ts
-  var CAMEL_ATTR = "sc-camel-";
-  var INLINE_TEXT_TAGS = new Set(
-    "a abbr b bdi bdo br cite code del dfn em i ins kbd mark q s samp small span strike strong sub sup u var wbr".split(
-      " "
-    )
-  );
-  var RAW_WRAP = {
-    select: "sc-raw-select",
-    table: "sc-raw-table",
-    tbody: "sc-raw-tbody",
-    thead: "sc-raw-thead",
-    tfoot: "sc-raw-tfoot",
-    tr: "sc-raw-tr",
-    td: "sc-raw-td",
-    th: "sc-raw-th",
-    caption: "sc-raw-caption"
-  };
-  var RAW_UNWRAP = Object.fromEntries(
-    Object.entries(RAW_WRAP).map(([k, v]) => [v, k])
-  );
-  var EVENT_MAP = {
-    onclick: "onClick",
-    onchange: "onChange",
-    oninput: "onInput",
-    onsubmit: "onSubmit",
-    onkeydown: "onKeyDown",
-    onkeyup: "onKeyUp",
-    onkeypress: "onKeyPress",
-    onmousedown: "onMouseDown",
-    onmouseup: "onMouseUp",
-    onmouseenter: "onMouseEnter",
-    onmouseleave: "onMouseLeave",
-    onfocus: "onFocus",
-    onblur: "onBlur",
-    ondoubleclick: "onDoubleClick",
-    oncontextmenu: "onContextMenu"
-  };
-  var ATTRS = `(?:[^>"']|"[^"]*"|'[^']*')*`;
-  var IMPORT_SELF_CLOSE_RE = new RegExp(
-    "<(x-import|dc-import)(" + ATTRS + ")/>",
-    "gi"
-  );
-  var CAMEL_ATTR_RE = /(\s)([a-z]+[A-Z][A-Za-z0-9]*)(\s*=)/g;
-  function encodeCase(html) {
-    html = html.replace(
-      IMPORT_SELF_CLOSE_RE,
-      (_, t, a) => "<" + t + a + "></" + t + ">"
-    );
-    html = html.replace(/<helmet(\s|>)/gi, "<sc-helmet$1");
-    html = html.replace(/<\/helmet\s*>/gi, "</sc-helmet>");
-    html = html.replace(
-      CAMEL_ATTR_RE,
-      (_, sp, name, eq) => sp + CAMEL_ATTR + name.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase()) + eq
-    );
-    for (const [real, alias] of Object.entries(RAW_WRAP)) {
-      html = html.replace(
-        new RegExp("(</?)" + real + "(?=[\\s>])", "gi"),
-        "$1" + alias
-      );
-    }
-    return html;
-  }
-  function kebabToCamel(s) {
-    return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-  }
-  function cssToObj(css) {
-    const o = {};
-    for (const decl of css.split(";")) {
-      const i = decl.indexOf(":");
-      if (i < 0) continue;
-      const prop = decl.slice(0, i).trim();
-      o[prop.startsWith("--") ? prop : kebabToCamel(prop)] = decl.slice(i + 1).trim();
-    }
-    return o;
-  }
-  function compileAttr(raw) {
-    const whole = raw.match(/^\s*\{\{([\s\S]+?)\}\}\s*$/);
-    if (whole) {
-      const path = whole[1];
-      return (vals) => resolve(vals, path);
-    }
-    if (raw.includes("{{")) {
-      const parts = raw.split(/\{\{([\s\S]+?)\}\}/g);
-      return (vals) => parts.map((s, i) => i & 1 ? resolve(vals, s) ?? "" : s).join("");
-    }
-    return () => raw;
-  }
+    const drawCarBody = () => {
+      ctx.lineCap = 'round';
+      for (let i = 1; i < carTrail.length; i++) {
+        ctx.strokeStyle = pal.accent;
+        ctx.globalAlpha = (i / carTrail.length) * 0.4 * Math.min(1, car.speed / 3);
+        ctx.lineWidth = (i / carTrail.length) * 4;
+        ctx.beginPath(); ctx.moveTo(carTrail[i - 1].x, carTrail[i - 1].y); ctx.lineTo(carTrail[i].x, carTrail[i].y); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.save();
+      ctx.translate(car.x, car.y); ctx.rotate(car.angle);
+      ctx.fillStyle = pal.ink; ctx.globalAlpha = 0.92;
+      const wheel = (wx, wy) => { ctx.beginPath(); ctx.roundRect(wx - 5, wy - 3.5, 10, 7, 2); ctx.fill(); };
+      wheel(11, -11); wheel(11, 11); wheel(-13, -11); wheel(-13, 11);
+      ctx.fillRect(20, -12, 5, 24);
+      ctx.fillRect(-25, -13, 5, 26);
+      ctx.fillStyle = pal.accent; ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.moveTo(24, 0); ctx.lineTo(11, -6); ctx.lineTo(-18, -8.5);
+      ctx.lineTo(-22, 0); ctx.lineTo(-18, 8.5); ctx.lineTo(11, 6);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = pal.ink; ctx.globalAlpha = 0.85;
+      ctx.beginPath(); ctx.ellipse(-3, 0, 6, 4.2, 0, 0, 6.2832); ctx.fill();
+      ctx.restore(); ctx.globalAlpha = 1;
+    };
 
-  // src/compile.ts
-  function collectProps(node, kind, host) {
-    const propGetters = [];
-    const pseudoClasses = [];
-    let hintSize = null;
-    for (const { name, value } of [...node.attributes]) {
-      if (name === "sc-name" || name === "data-dc-tpl") continue;
-      let key = name;
-      if (key.startsWith(CAMEL_ATTR))
-        key = kebabToCamel(key.slice(CAMEL_ATTR.length));
-      if (key === "hint-size") {
-        hintSize = value;
-        continue;
-      }
-      if (key.startsWith("style-")) {
-        pseudoClasses.push(host.pseudoClass(key.slice(6), value));
-        continue;
-      }
-      if (kind !== "dom") {
-        if (key.includes("-") && !(kind === "x-import" && (key.startsWith("aria-") || key.startsWith("data-"))))
-          key = kebabToCamel(key);
+    const updateBall = () => {
+      if (ball.shot > 0) {
+        // powered homing corner kick — curls toward the goal mouth
+        const dx = (w + 8) - ball.x, dy = h / 2 - ball.y, d = Math.hypot(dx, dy) || 1, spd = 6;
+        ball.vx += ((dx / d * spd) - ball.vx) * 0.04;
+        ball.vy += ((dy / d * spd) - ball.vy) * 0.04;
+        ball.vx *= 0.995; ball.vy *= 0.995; ball.shot--;
       } else {
-        if (key === "class") key = "className";
-        else if (key === "for") key = "htmlFor";
-        else if (key.startsWith("on"))
-          key = EVENT_MAP[key] || "on" + key[2].toUpperCase() + key.slice(3);
+        ball.vx *= 0.976; ball.vy *= 0.976;
       }
-      propGetters.push([key, compileAttr(value)]);
-    }
-    return { propGetters, pseudoClasses, hintSize };
-  }
-  var HOST_STYLE_PROPS = /* @__PURE__ */ new Set([
-    "position",
-    "left",
-    "right",
-    "top",
-    "bottom",
-    "inset",
-    "width",
-    "height",
-    "z-index",
-    "transform"
-  ]);
-  function hostPositionStyle(style) {
-    const all = typeof style === "string" ? cssToObj(style) : style != null && typeof style === "object" ? style : null;
-    if (!all) return void 0;
-    const out = {};
-    for (const [k, v] of Object.entries(all)) {
-      const kebab = k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
-      if (HOST_STYLE_PROPS.has(kebab)) out[k] = v;
-    }
-    return Object.keys(out).length ? out : void 0;
-  }
-  function compileTemplate(html, host) {
-    const tpl = document.createElement("template");
-    //! nosemgrep: direct-inner-html-assignment
-    tpl.innerHTML = encodeCase(html);
-    let tplN = 0;
-    (function stamp(node) {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        node.setAttribute("data-dc-tpl", String(tplN++));
+      // collide with the car: kick when driven into, bounce when it rolls in, rest when both still
+      const cdx = ball.x - car.x, cdy = ball.y - car.y, cd = Math.hypot(cdx, cdy) || 1;
+      const hit = ball.r + 22;
+      if (cd < hit) {
+        const nx = cdx / cd, ny = cdy / cd;
+        ball.x = car.x + nx * hit; ball.y = car.y + ny * hit;
+        const cvx = Math.cos(car.angle) * car.speed, cvy = Math.sin(car.angle) * car.speed;
+        const vdotn = ball.vx * nx + ball.vy * ny;
+        if (vdotn < 0) { ball.vx -= 2 * vdotn * nx; ball.vy -= 2 * vdotn * ny; ball.vx *= 0.7; ball.vy *= 0.7; }
+        const carPush = cvx * nx + cvy * ny;
+        if (carPush > 0) { const p = carPush * 0.95 + (car.speed > 0.5 ? 1.2 : 0); ball.vx += nx * p; ball.vy += ny * p; }
       }
-      for (const c of node.childNodes) stamp(c);
-    })(tpl.content);
-    const builders = walkChildren(tpl.content, host);
-    const render = ((vals, ctx) => builders.map((b, i) => b(vals || {}, ctx, i)));
-    render.__annotated = tpl.innerHTML;
-    return render;
-  }
-  function walkChildren(node, host) {
-    return [...node.childNodes].map((c) => walk(c, host)).filter((b) => b != null);
-  }
-  function walk(node, host) {
-    if (node.nodeType === Node.TEXT_NODE) return walkText(node);
-    if (node.nodeType !== Node.ELEMENT_NODE) return null;
-    const el = node;
-    const tag = el.tagName.toLowerCase();
-    if (tag === "sc-for") return walkFor(el, host);
-    if (tag === "sc-if") return walkIf(el, host);
-    if (tag === "x-import") return walkXImport(el, host);
-    if (tag === "sc-helmet") return host.helmet(el);
-    if (tag === "dc-import") return walkComponent(el, host);
-    return walkElement(el, host);
-  }
-  var warnedHoles = /* @__PURE__ */ new Set();
-  function warnUnresolved(ctx, what) {
-    const key = (ctx?.__name || "?") + "\0" + what;
-    if (warnedHoles.has(key)) return;
-    warnedHoles.add(key);
-    console.warn("[dc-runtime] " + (ctx?.__name || "template") + ": " + what);
-  }
-  function walkText(node) {
-    const txt = node.nodeValue ?? "";
-    if (!txt.includes("{{")) {
-      if (!txt.trim() && !txt.includes(" ")) return null;
-      return () => txt;
-    }
-    const parts = txt.split(/\{\{([\s\S]+?)\}\}/g);
-    return (vals, ctx, key) => h(
-      getReact().Fragment,
-      { key },
-      ...parts.map((p, i) => {
-        if (!(i & 1)) return p;
-        const v = resolve(vals, p);
-        if (v === void 0) {
-          if (!ctx?.__streamingNow) {
-            if (document.body?.hasAttribute("data-dc-editor-on")) {
-              return h(
-                "span",
-                { key: i, className: "sc-interp sc-unresolved" },
-                "{{ " + p.trim() + " }}"
-              );
-            }
-            warnUnresolved(
-              ctx,
-              "{{ " + p.trim() + " }} never resolved \u2014 rendered as empty"
-            );
-            return null;
-          }
-          return h(
-            "span",
-            { key: i, className: "sc-interp sc-missing" },
-            p.trim()
-          );
-        }
-        if (getReact().isValidElement(v) || Array.isArray(v)) {
-          return h(getReact().Fragment, { key: i }, v);
-        }
-        if (v === null || typeof v === "boolean") return null;
-        return h("span", { key: i, className: "sc-interp" }, String(v));
-      })
-    );
-  }
-  function walkFor(el, host) {
-    const listGet = compileAttr(el.getAttribute("list") || "");
-    const asName = el.getAttribute("as") || "item";
-    const hintN = parseInt(el.getAttribute("hint-placeholder-count") || "0", 10);
-    const kids = walkChildren(el, host);
-    const listSrc = el.getAttribute("list") || "";
-    return (vals, ctx, key) => {
-      let list = listGet(vals);
-      if (!Array.isArray(list)) {
-        if (!ctx?.__streamingNow) {
-          if (list !== void 0 && list !== null) {
-            warnUnresolved(
-              ctx,
-              'sc-for list="' + listSrc + '" is not an array (' + typeof list + ")"
-            );
-          }
-          list = [];
-        } else {
-          list = hintN > 0 ? Array(hintN).fill(void 0) : [];
-        }
+      // speed scales with the car, capped (except during a powered corner kick)
+      const bs = Math.hypot(ball.vx, ball.vy); if (ball.shot <= 0 && bs > 9) { ball.vx = ball.vx / bs * 9; ball.vy = ball.vy / bs * 9; }
+      else if (ball.shot > 0 && bs > 6.5) { ball.vx = ball.vx / bs * 6.5; ball.vy = ball.vy / bs * 6.5; }
+      ball.x += ball.vx; ball.y += ball.vy;
+      const r = ball.r;
+      if (ball.x < r) { ball.x = r; ball.vx *= -0.72; }
+      const gg = goalGeom();
+      if (ball.x + r >= w) {
+        if (ball.y > gg.gy0 && ball.y < gg.gy1) { this._scoreGoal(); return; }
+        ball.x = w - r; ball.vx *= -0.72;
       }
-      return h(
-        getReact().Fragment,
-        { key },
-        list.map((item, i) => {
-          const sub = { ...vals, [asName]: item, $index: i };
-          return h(
-            getReact().Fragment,
-            { key: i },
-            kids.map((b, j) => b(sub, ctx, j))
-          );
-        })
-      );
-    };
-  }
-  function walkIf(el, host) {
-    const valGet = compileAttr(el.getAttribute("value") || "");
-    const hintRaw = el.getAttribute("hint-placeholder-val");
-    const hintGet = hintRaw != null ? compileAttr(hintRaw) : null;
-    const kids = walkChildren(el, host);
-    return (vals, ctx, key) => {
-      let v = valGet(vals);
-      if (v === void 0 && hintGet && ctx?.__streamingNow) v = hintGet(vals);
-      return v ? h(
-        getReact().Fragment,
-        { key },
-        kids.map((b, j) => b(vals, ctx, j))
-      ) : null;
-    };
-  }
-  function walkComponent(el, host) {
-    const name = el.getAttribute("name") || el.getAttribute("component") || "";
-    el.removeAttribute("name");
-    el.removeAttribute("component");
-    const tplId = el.getAttribute("data-dc-tpl");
-    const styleRaw = el.getAttribute("style");
-    el.removeAttribute("style");
-    const styleGet = styleRaw != null ? compileAttr(styleRaw) : null;
-    const { propGetters, hintSize } = collectProps(el, "dc-import", host);
-    const kids = walkChildren(el, host);
-    return (vals, ctx, key) => {
-      const props = {
-        key,
-        __hintSize: hintSize,
-        __tplId: tplId,
-        __hostStyle: styleGet ? hostPositionStyle(styleGet(vals)) : void 0
-      };
-      for (const [k, g] of propGetters) {
-        const v = g(vals);
-        if (k === "dcProps") {
-          if (v && typeof v === "object") Object.assign(props, v);
-          continue;
-        }
-        props[k] = v;
-      }
-      if (kids.length) props.children = kids.map((b, j) => b(vals, ctx, j));
-      return h(host.component(name), props);
-    };
-  }
-  function walkXImport(el, host) {
-    const globalNameGet = compileAttr(
-      el.getAttribute("component-from-global-scope") || ""
-    );
-    const exportNameGet = compileAttr(
-      el.getAttribute("component") || el.getAttribute("name") || ""
-    );
-    const fromRaw = el.getAttribute("from") || el.getAttribute("src") || el.getAttribute("import") || "";
-    const urls = fromRaw.trim() ? fromRaw.trim().split(/\s+/) : [];
-    const url = urls.length ? urls[urls.length - 1] : "";
-    const kindOf = (u) => /\.(jsx|tsx)(\?|#|$)/i.test(u) ? "jsx" : "js";
-    const tplId = el.getAttribute("data-dc-tpl");
-    const styleRaw = el.getAttribute("style");
-    el.removeAttribute("style");
-    const styleGet = styleRaw != null ? compileAttr(styleRaw) : null;
-    const wrap = tplId != null || styleGet != null;
-    const { propGetters, hintSize } = collectProps(el, "x-import", host);
-    const hasContent = el.children.length > 0 || !!(el.textContent || "").trim();
-    const kids = hasContent ? walkChildren(el, host) : [];
-    const urlBindable = fromRaw.includes("{{");
-    if (urls.length && !urlBindable) {
-      let prev;
-      for (const u of urls) prev = host.loadExternal(kindOf(u), u, prev);
-    }
-    const evalName = (g, vals) => {
-      const v = g(vals);
-      const s = v == null ? "" : String(v);
-      return s.includes("{{") ? "" : s;
-    };
-    return (vals, ctx, key) => {
-      const globalName = evalName(globalNameGet, vals);
-      const name = globalName || evalName(exportNameGet, vals);
-      const C = !name || urlBindable ? null : globalName ? host.resolveExternalGlobal(url, globalName) : host.resolveExternal(url, name);
-      const hostStyle = styleGet ? hostPositionStyle(styleGet(vals)) : void 0;
-      const wrapper = wrap ? {
-        key,
-        className: "sc-host-x",
-        "data-dc-tpl": tplId,
-        style: hostStyle || { display: "contents" }
-      } : null;
-      if (!C) {
-        const error = urlBindable ? "x-import `from` cannot contain {{ \u2026 }} \u2014 module URLs are resolved at parse time; use a literal URL" : host.resolveExternalError(url, name);
-        const ph = host.placeholder({
-          key: wrapper ? void 0 : key,
-          name,
-          hintSize,
-          error
-        });
-        return wrapper ? h("div", wrapper, ph) : ph;
-      }
-      const props = wrapper ? {} : { key };
-      let unresolvedHole = false;
-      for (const [k, g] of propGetters) {
-        if (k === "component" || k === "componentFromGlobalScope" || k === "from") {
-          continue;
-        }
-        const v = g(vals);
-        if (v === void 0) unresolvedHole = true;
-        if (k === "dcProps") {
-          if (v && typeof v === "object") Object.assign(props, v);
-          continue;
-        }
-        props[k] = v;
-      }
-      if (unresolvedHole && ctx?.__htmlStreamingNow) {
-        const ph = host.placeholder({
-          key: wrapper ? void 0 : key,
-          name,
-          hintSize,
-          error: null
-        });
-        return wrapper ? h("div", wrapper, ph) : ph;
-      }
-      if (kids.length) props.children = kids.map((b, j) => b(vals, ctx, j));
-      return wrapper ? h("div", wrapper, h(C, props)) : h(C, props);
-    };
-  }
-  function contentKey(el) {
-    const clone = el.cloneNode(true);
-    for (const d of clone.querySelectorAll("*")) {
-      while (d.attributes.length) d.removeAttribute(d.attributes[0].name);
-    }
-    const s = clone.innerHTML;
-    let h2 = 5381;
-    for (let i = 0; i < s.length; i++) h2 = (h2 << 5) + h2 + s.charCodeAt(i) | 0;
-    return s.length + "." + (h2 >>> 0).toString(36);
-  }
-  var NEVER_CONTENT_KEYED = new Set(
-    "script style textarea option title select canvas iframe video audio".split(
-      " "
-    )
-  );
-  var NOT_INLINE_SELECTOR = ":not(" + [...INLINE_TEXT_TAGS].join(",") + ")";
-  function walkElement(el, host) {
-    const realTag = RAW_UNWRAP[el.localName] || el.localName;
-    const tplId = el.getAttribute("data-dc-tpl");
-    const inlineOnly = el.childNodes.length > 0 && !NEVER_CONTENT_KEYED.has(realTag) && el.querySelector(NOT_INLINE_SELECTOR) === null;
-    const keySuffix = inlineOnly ? "|" + contentKey(el) : "";
-    const { propGetters, pseudoClasses } = collectProps(el, "dom", host);
-    const kids = walkChildren(el, host);
-    return (vals, ctx, key) => {
-      const props = {
-        key: key + keySuffix,
-        "data-dc-tpl": tplId
-      };
-      for (const [k, g] of propGetters) {
-        let v = g(vals);
-        if (k === "style" && typeof v === "string") v = cssToObj(v);
-        if ((k === "value" || k === "checked") && v === void 0) {
-          v = k === "checked" ? false : "";
-        }
-        props[k] = v;
-      }
-      if (pseudoClasses.length) {
-        props.className = [props.className, ...pseudoClasses].filter(Boolean).join(" ");
-      }
-      return h(realTag, props, ...kids.map((b, j) => b(vals, ctx, j)));
-    };
-  }
-
-  // src/logic.ts
-  var StreamableLogic = class {
-    constructor(props) {
-      __publicField(this, "props");
-      __publicField(this, "state", {});
-      /** Back-pointer to the wrapper component, installed after construction. */
-      __publicField(this, "__host");
-      this.props = props || {};
-    }
-    setState(update, cb) {
-      this.__host && this.__host.__setLogicState(update, cb);
-    }
-    forceUpdate() {
-      this.__host && this.__host.forceUpdate();
-    }
-    componentDidMount() {
-    }
-    componentDidUpdate(_prevProps) {
-    }
-    componentWillUnmount() {
-    }
-    /** The flat object the template renders against (merged over props). */
-    renderVals() {
-      return {};
-    }
-  };
-  function evalDcLogic(src) {
-    //! nosemgrep: eval-and-function-constructor
-    const fn = new Function(
-      "DCLogic",
-      "StreamableLogic",
-      "React",
-      src + '\n;return (typeof Component!=="undefined"&&Component)||undefined;'
-    );
-    return fn(StreamableLogic, StreamableLogic, getReact());
-  }
-
-  // src/component.ts
-  function shallowEqual(a, b) {
-    if (!b) return false;
-    const ak = Object.keys(a).filter((k) => k !== "children");
-    const bk = Object.keys(b).filter((k) => k !== "children");
-    if (ak.length !== bk.length) return false;
-    for (const k of ak) if (a[k] !== b[k]) return false;
-    return true;
-  }
-  function Placeholder({
-    name,
-    hintSize,
-    streaming,
-    error
-  }) {
-    const [w, hgt] = (hintSize || "100%,60px").split(",");
-    return h(
-      "div",
-      {
-        className: "sc-placeholder" + (streaming ? " sc-streaming" : ""),
-        style: { width: w.trim(), height: hgt && hgt.trim() },
-        title: name
-      },
-      error ? h(
-        "div",
-        { className: "sc-placeholder-error" },
-        (name ? name + ": " : "") + error
-      ) : null
-    );
-  }
-  function hintToMin(hint) {
-    if (!hint) return void 0;
-    const [w, hgt] = hint.split(",");
-    return { minWidth: w.trim(), minHeight: hgt && hgt.trim() };
-  }
-  function createComponentFactory(registry, ensureFetched) {
-    const React = getReact();
-    const AncestorContext = React.createContext([]);
-    class StreamableComponent extends React.Component {
-      constructor(props) {
-        super(props);
-        __publicField(this, "__name");
-        __publicField(this, "__sub");
-        __publicField(this, "__needsDidMount", false);
-        /** Snapshot of the registry's streaming flags taken at render time —
-         *  builders read it off the RenderCtx (this) to pick placeholder vs
-         *  render-nothing for unresolved values. */
-        __publicField(this, "__streamingNow", false);
-        __publicField(this, "__htmlStreamingNow", false);
-        /** When a construct throws, remember the (class, registry.ver, props)
-         *  triple so render-time reconcile doesn't re-attempt it on every parent
-         *  re-render. A registry bump (new class, template, external module
-         *  resolving via bumpAll) changes `ver` and breaks the memo so an
-         *  env-dependent constructor can self-heal. */
-        __publicField(this, "__failedLogic", null);
-        __publicField(this, "__failedUserProps", null);
-        __publicField(this, "__failedVer", -1);
-        /** Per-instance constructor error — kept here (not on the registry entry)
-         *  so one instance's successful construct can't hide a sibling's failure,
-         *  and a construct can never wipe an eval error `updateJs` recorded on
-         *  `r.logicError`. */
-        __publicField(this, "__ctorError", null);
-        __publicField(this, "logic");
-        this.__name = props.__name;
-        this.state = { __v: 0, __err: null };
-        this.__sub = () => {
-          if (this.state.__err) this.setState({ __err: null });
-          this.forceUpdate();
-        };
-        this.__makeLogic(registry.get(this.__name).Logic, null);
-        ensureFetched(this.__name);
-      }
-      /** Error-boundary hook: a render crash anywhere in this DC's subtree
-       *  (its own template, an x-import'd component, a child DC without its
-       *  own deeper boundary) lands here instead of unmounting the page. */
-      static getDerivedStateFromError(e) {
-        return { __err: e instanceof Error && e.message ? e.message : String(e) };
-      }
-      componentDidCatch(e, info) {
-        console.error(
-          "[dc-runtime] render error in <" + this.__name + ">:",
-          e,
-          info?.componentStack || ""
-        );
-      }
-      /** Instantiate the logic class (or the no-op base) and adopt `prevState`
-       *  over its initial state — used both at mount and on hot-swap. */
-      __makeLogic(Logic, prevState) {
-        const L = Logic || StreamableLogic;
-        try {
-          this.logic = new L(this.__userProps());
-          this.__failedLogic = null;
-          this.__failedUserProps = null;
-          this.__ctorError = null;
-        } catch (e) {
-          console.error(e);
-          this.__failedLogic = Logic;
-          this.__failedUserProps = this.__userProps();
-          this.__failedVer = registry.get(this.__name).ver;
-          this.__ctorError = this.__name + ": " + (e instanceof Error && e.message ? e.message : String(e));
-          this.logic = new StreamableLogic(
-            this.__userProps()
-          );
-        }
-        this.logic.__host = this;
-        if (prevState)
-          this.logic.state = { ...this.logic.state || {}, ...prevState };
-      }
-      /** The props the author's logic + template see — internal __-prefixed
-       *  wiring stripped. */
-      __userProps() {
-        const { __name, __hintSize, __tplId, __hostStyle, ...rest } = this.props;
-        return rest;
-      }
-      __setLogicState(update, cb) {
-        const prev = this.logic.state;
-        const patch = typeof update === "function" ? update(prev) : update;
-        this.logic.state = { ...prev, ...patch };
-        this.setState((s) => ({ __v: s.__v + 1 }), cb);
-      }
-      /** Swap the logic instance when the registry's Logic class changed
-       *  (streaming completion, hot reload). State carries over; didMount
-       *  re-fires after the swap commits so refs exist. */
-      __reconcileLogic() {
-        const r = registry.get(this.__name);
-        const Next = r.Logic;
-        const Cur = this.logic.constructor;
-        if (Next === Cur || !Next && Cur === StreamableLogic || Next === this.__failedLogic && r.ver === this.__failedVer && shallowEqual(this.__userProps(), this.__failedUserProps)) {
-          return;
-        }
-        if (!this.__needsDidMount) {
-          try {
-            this.logic.componentWillUnmount();
-          } catch (e) {
-            console.error(e);
-          }
-        }
-        this.__makeLogic(Next, this.logic.state);
-        this.__needsDidMount = true;
-      }
-      componentDidMount() {
-        registry.get(this.__name).subs.add(this.__sub);
-        try {
-          this.logic.componentDidMount();
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      componentDidUpdate(prevProps) {
-        this.logic.props = this.__userProps();
-        if (this.__needsDidMount) {
-          if (this.state.__err || !registry.get(this.__name).tpl) return;
-          this.__needsDidMount = false;
-          try {
-            this.logic.componentDidMount();
-          } catch (e) {
-            console.error(e);
-          }
-        } else {
-          try {
-            this.logic.componentDidUpdate(prevProps);
-          } catch (e) {
-            console.error(e);
-          }
-        }
-      }
-      componentWillUnmount() {
-        registry.get(this.__name).subs.delete(this.__sub);
-        if (!this.__needsDidMount) {
-          try {
-            this.logic.componentWillUnmount();
-          } catch (e) {
-            console.error(e);
-          }
-        }
-      }
-      render() {
-        const r = registry.get(this.__name);
-        const cls = "sc-host" + (r.htmlStreaming ? " sc-streaming-html" : "") + (r.jsStreaming ? " sc-streaming-js" : "");
-        const hintStyle = r.htmlStreaming ? hintToMin(this.props.__hintSize) : void 0;
-        const hostStyle = this.props.__hostStyle || hintStyle ? { ...hintStyle || {}, ...this.props.__hostStyle || {} } : void 0;
-        const hostBase = {
-          className: cls,
-          style: hostStyle,
-          "data-sc-name": this.__name,
-          "data-dc-tpl": this.props.__tplId
-        };
-        const chain = Array.isArray(this.context) ? this.context : [];
-        if (chain.includes(this.__name)) {
-          const cycle = [
-            ...chain.slice(chain.indexOf(this.__name)),
-            this.__name
-          ].join(" \u2192 ");
-          return h(
-            "div",
-            { ...hostBase, className: cls + " sc-has-error" },
-            h(Placeholder, {
-              name: this.__name,
-              hintSize: this.props.__hintSize,
-              error: "circular import: " + cycle
-            })
-          );
-        }
-        if (this.state.__err) {
-          return h(
-            "div",
-            { ...hostBase, className: cls + " sc-has-error" },
-            h(
-              "div",
-              { className: "sc-logic-error", "data-omelette-chrome": "" },
-              this.__name + ": " + this.state.__err
-            ),
-            h(Placeholder, {
-              name: this.__name,
-              hintSize: this.props.__hintSize,
-              error: this.state.__err
-            })
-          );
-        }
-        this.__reconcileLogic();
-        if (!r.tpl) {
-          return h(
-            "div",
-            hostBase,
-            h(Placeholder, { name: this.__name, hintSize: this.props.__hintSize })
-          );
-        }
-        const userProps = this.__userProps();
-        this.logic.props = userProps;
-        let vals = userProps;
-        let renderErr = r.logicError || this.__ctorError;
-        try {
-          vals = { ...userProps, ...this.logic.renderVals() || {} };
-        } catch (e) {
-          console.error(e);
-          renderErr = this.__name + ".renderVals(): " + (e instanceof Error && e.message ? e.message : String(e));
-        }
-        this.__streamingNow = !!(r.htmlStreaming || r.jsStreaming);
-        this.__htmlStreamingNow = !!r.htmlStreaming;
-        return h(
-          "div",
-          { ...hostBase, className: cls + (renderErr ? " sc-has-error" : "") },
-          renderErr && h(
-            "div",
-            { className: "sc-logic-error", "data-omelette-chrome": "" },
-            renderErr
-          ),
-          h(
-            AncestorContext.Provider,
-            { value: [...chain, this.__name] },
-            r.tpl(vals, this)
-          )
-        );
-      }
-    }
-    __publicField(StreamableComponent, "contextType", AncestorContext);
-    const named = /* @__PURE__ */ new Map();
-    function getDC(name) {
-      const hit = named.get(name);
-      if (hit) return hit;
-      function Dispatcher(p) {
-        const [, setTick] = React.useState(0);
-        React.useEffect(() => {
-          const sub = () => setTick((n) => n + 1);
-          registry.get(name).subs.add(sub);
-          return () => {
-            registry.get(name).subs.delete(sub);
-          };
-        }, []);
-        ensureFetched(name);
-        return h(StreamableComponent, { ...p, __name: name });
-      }
-      Dispatcher.displayName = name;
-      named.set(name, Dispatcher);
-      return Dispatcher;
-    }
-    return {
-      getDC,
-      StreamableComponent
-    };
-  }
-
-  // src/external.ts
-  var isCustomElementName = (n) => !n.includes(".") && n.includes("-");
-  function isRenderableType(g) {
-    if (typeof g === "function") return !isElementClass(g);
-    return typeof g === "object" && g !== null && typeof g.$$typeof === "symbol";
-  }
-  function resolveDottedPath(root, name) {
-    let cur = root;
-    for (const seg of name.split(".")) {
-      if (cur == null) return void 0;
-      cur = cur[seg];
-    }
-    return cur;
-  }
-  var BABEL_URL = "https://unpkg.com/@babel/standalone@7.29.0/babel.min.js";
-  var BABEL_SRI = "sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y";
-  var GLOBAL_POLL_INTERVAL_MS = 50;
-  var GLOBAL_POLL_TIMEOUT_MS = 3e4;
-  function createExternalModules(onResolved) {
-    const cache = /* @__PURE__ */ new Map();
-    let babelLoading = null;
-    const reportedMissing = /* @__PURE__ */ new Map();
-    const polling = /* @__PURE__ */ new Set();
-    function ensureBabel() {
-      if (window.Babel) return Promise.resolve();
-      if (babelLoading) return babelLoading;
-      babelLoading = new Promise((res, rej) => {
-        const s = document.createElement("script");
-        s.src = BABEL_URL;
-        s.integrity = BABEL_SRI;
-        s.crossOrigin = "anonymous";
-        s.onload = () => res();
-        s.onerror = rej;
-        document.head.appendChild(s);
-      });
-      return babelLoading;
-    }
-    const pending = /* @__PURE__ */ new Map();
-    function load(kind, url, after) {
-      const existing = pending.get(url);
-      if (existing) return existing;
-      cache.set(url, null);
-      console.info("[dc-runtime] x-import: loading", url, "(" + kind + ")");
-      const ready = Promise.all([
-        kind === "jsx" ? ensureBabel() : Promise.resolve(),
-        after ?? Promise.resolve()
-      ]);
-      const p = ready.then(() => fetch(url)).then((r) => {
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.text();
-      }).then((src) => {
-        const code = kind === "jsx" ? window.Babel.transform(src, {
-          filename: url,
-          presets: ["react", "typescript"]
-        }).code : src;
-        const module = { exports: {} };
-        const before = new Set(Object.keys(window));
-        //! nosemgrep: eval-and-function-constructor
-        new Function("React", "module", "exports", "require", code)(
-          getReact(),
-          module,
-          module.exports,
-          () => ({})
-        );
-        const globals = {};
-        for (const k of Object.keys(window)) {
-          if (!before.has(k) && typeof window[k] === "function") {
-            globals[k] = window[k];
-          }
-        }
-        cache.set(url, { mod: module.exports, globals });
-        console.info(
-          "[dc-runtime] x-import: loaded",
-          url,
-          "\u2014 exports:",
-          Object.keys(module.exports),
-          "window globals:",
-          Object.keys(globals)
-        );
-        onResolved();
-      }).catch((e) => {
-        cache.set(url, {
-          mod: {},
-          globals: {},
-          error: "failed to load: " + (e instanceof Error && e.message ? e.message : String(e))
-        });
-        console.error(
-          "[dc-runtime] x-import: FAILED to load",
-          url,
-          "(" + kind + ")",
-          e
-        );
-        onResolved();
-      });
-      pending.set(url, p);
-      return p;
-    }
-    function resolve2(url, name) {
-      const entry = cache.get(url);
-      if (!entry) return null;
-      const { mod, globals } = entry;
-      const C = mod && mod[name] || globals && globals[name] || typeof window !== "undefined" && window[name] || mod && mod.default;
-      if (typeof C === "function") return C;
-      const key = url + "\0" + name;
-      if (!reportedMissing.has(key)) {
-        reportedMissing.set(
-          key,
-          entry.error || 'no export named "' + name + '" (has: ' + Object.keys(mod).join(", ") + ")"
-        );
-        console.error(
-          "[dc-runtime] x-import: module",
-          url,
-          "loaded but has no component named",
-          JSON.stringify(name),
-          "\u2014 available exports:",
-          Object.keys(mod),
-          "window globals:",
-          Object.keys(globals),
-          ". The module must `module.exports = {" + name + "}` or set `window." + name + "`."
-        );
-      }
-      return null;
-    }
-    function waitForGlobal(name) {
-      if (polling.has(name)) return;
-      polling.add(name);
-      const started = Date.now();
-      const isCE = isCustomElementName(name);
-      const tick = () => {
-        const found = isCE ? customElements.get(name) : isRenderableType(resolveDottedPath(window, name));
-        if (found) {
-          polling.delete(name);
-          onResolved();
-          return;
-        }
-        if (Date.now() - started >= GLOBAL_POLL_TIMEOUT_MS) {
-          console.warn(
-            "[dc-runtime] x-import: global",
-            JSON.stringify(name),
-            "never appeared on window after " + GLOBAL_POLL_TIMEOUT_MS + "ms"
-          );
-          return;
-        }
-        setTimeout(tick, GLOBAL_POLL_INTERVAL_MS);
-      };
-      setTimeout(tick, GLOBAL_POLL_INTERVAL_MS);
-    }
-    function resolveGlobal(url, name) {
-      const isCE = isCustomElementName(name);
-      if (!url) {
-        if (isCE) {
-          if (customElements.get(name)) return name;
-          waitForGlobal(name);
-          return null;
-        }
-        const g2 = resolveDottedPath(window, name);
-        if (isRenderableType(g2)) return g2;
-        waitForGlobal(name);
-        return null;
-      }
-      const entry = cache.get(url);
-      if (!entry) return null;
-      if (isCE && customElements.get(name)) return name;
-      const g = entry.globals[name] ?? resolveDottedPath(window, name);
-      if (isRenderableType(g)) return g;
-      if (name.includes(".")) return null;
-      const key = url + "\0global\0" + name;
-      if (!reportedMissing.has(key)) {
-        reportedMissing.set(key, null);
-        if (isCE && !customElements.get(name)) {
-          console.warn(
-            "[dc-runtime] x-import:",
-            url,
-            "loaded but no custom element",
-            JSON.stringify(name),
-            "is registered and window." + name + " is not a function \u2014 rendering <" + name + "> as an unknown element."
-          );
-        }
-      }
-      return name;
-    }
-    function getError(url, name) {
-      const entry = cache.get(url);
-      if (entry?.error) return entry.error;
-      return reportedMissing.get(url + "\0" + name) || null;
-    }
-    return { load, resolve: resolve2, resolveGlobal, getError };
-  }
-  function isElementClass(g) {
-    try {
-      return typeof g === "function" && typeof HTMLElement !== "undefined" && g.prototype instanceof HTMLElement;
-    } catch {
-      return false;
-    }
-  }
-
-  // src/atomics.ts
-  var ATOMIC_CSS = (
-    // layout
-    ".fx{display:flex}.col{display:flex;flex-direction:column}.grid{display:grid}.ac{align-items:center}.jc{justify-content:center}.jb{justify-content:space-between}.f1{flex:1}.noshrink{flex-shrink:0}.wrap{flex-wrap:wrap}.fw5{font-weight:500}.fw6{font-weight:600}.fw7{font-weight:700}.fw8{font-weight:800}.fs11{font-size:11px}.fs12{font-size:12px}.fs13{font-size:13px}.fs14{font-size:14px}.fs15{font-size:15px}.fs16{font-size:16px}.fs20{font-size:20px}.fs22{font-size:22px}.upper{text-transform:uppercase}.tc{text-align:center}.nowrap{white-space:nowrap}.gap8{gap:8px}.gap10{gap:10px}.gap12{gap:12px}.gap16{gap:16px}.gap24{gap:24px}.m0{margin:0}.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}.posrel{position:relative}.posabs{position:absolute}.round{border-radius:50%}.ohide{overflow:hidden}.bbox{box-sizing:border-box}.pointer{cursor:pointer}.w100{width:100%}.b0{border:none}"
-  );
-
-  // src/helmet.ts
-  var DESIGN_DOC_MODE_RE = /<meta\b[^>]*\bname\s*=\s*["']design_doc_mode["'][^>]*\b(?:content|value)\s*=\s*["'](\w+)["']/i;
-  var CANVAS_BG_LIGHT = "#f0eee6";
-  var CANVAS_BG_DARK = "#2e2c26";
-  function createHelmetManager(doc, isStreaming) {
-    const mounted = /* @__PURE__ */ new Set();
-    const live = /* @__PURE__ */ new Map();
-    let designDocMode = null;
-    let canvasStyleEl = null;
-    let appTheme = "light";
-    try {
-      const ds = doc.documentElement.dataset.theme;
-      appTheme = ds === "dark" || ds === "light" ? ds : new URLSearchParams(doc.defaultView?.location.search ?? "").get(
-        "theme"
-      ) === "dark" ? "dark" : "light";
-    } catch {
-    }
-    function applyCanvasBg() {
-      if (!canvasStyleEl) return;
-      const bg = appTheme === "dark" ? CANVAS_BG_DARK : CANVAS_BG_LIGHT;
-      canvasStyleEl.textContent = `html,body{background:${bg}}#dc-root>.sc-host{position:relative}`;
-    }
-    function postDesignMode(mode) {
-      if (window.parent === window) return;
-      try {
-        window.parent.postMessage({ type: "__dc_design_mode", mode }, "*");
-      } catch {
-      }
-    }
-    function setDesignDocMode(mode) {
-      if (mode === designDocMode) return;
-      designDocMode = mode;
-      postDesignMode(mode);
-      if (mode === "canvas") {
-        doc.documentElement.setAttribute("data-dc-canvas", "");
-        canvasStyleEl = doc.createElement("style");
-        canvasStyleEl.setAttribute("data-dc-canvas", "");
-        applyCanvasBg();
-        doc.head.appendChild(canvasStyleEl);
+      if (ball.y < r) { ball.y = r; ball.vy *= -0.72; }
+      if (ball.y > h - r) { ball.y = h - r; ball.vy *= -0.72; }
+      ball.rot += (ball.vx >= 0 ? 1 : -1) * Math.hypot(ball.vx, ball.vy) / r;
+      // ball sitting in the actual top-right or bottom-right corner of the hero → offer a corner kick
+      const inRightCorner = ball.x > w - r - 160 && (ball.y < r + 160 || ball.y > h - r - 160);
+      if (ball.shot <= 0 && inRightCorner) {
+        this._cornerHold = 60;                       // keep the offer alive through jitter
+        this._cornerT = (this._cornerT || 0) + 1;
+        if (this._cornerT > 4 && !this._cornerReady) this._setCorner(true);
       } else {
-        doc.documentElement.removeAttribute("data-dc-canvas");
-        canvasStyleEl?.remove();
-        canvasStyleEl = null;
-      }
-    }
-    window.addEventListener("message", (e) => {
-      const type = e.data && e.data.type;
-      if (type === "__dc_theme") {
-        const t = e.data.theme;
-        if (t === "light" || t === "dark") {
-          appTheme = t;
-          doc.documentElement.dataset.theme = t;
-          applyCanvasBg();
+        this._cornerT = 0;
+        if (this._cornerReady) {
+          this._cornerHold = (this._cornerHold || 0) - 1;
+          if (this._cornerHold <= 0) this._setCorner(false);
         }
-        return;
       }
-      if (!designDocMode || type !== "__dc_probe") return;
-      postDesignMode(designDocMode);
-    });
-    function compile(node) {
-      const raw = [...node.children];
-      const helmetClosed = node.nextSibling != null || node.parentNode?.nextSibling != null;
-      if (node.hasAttribute("data-dc-atomics") && !mounted.has("__dc-atomics")) {
-        mounted.add("__dc-atomics");
-        const el = doc.createElement("style");
-        el.id = "__dc-atomics";
-        el.textContent = ATOMIC_CSS;
-        doc.head.appendChild(el);
-      }
-      return (_vals, ctx) => {
-        const name = ctx && ctx.__name || "";
-        const streaming = !!(name && isStreaming(name));
-        for (let i = 0; i < raw.length; i++) {
-          const child = raw[i];
-          const tag = child.tagName;
-          const mayBePartial = streaming && !helmetClosed && i === raw.length - 1;
-          if (tag === "SCRIPT") {
-            if (mayBePartial) continue;
-            const key = "SCRIPT|" + (child.getAttribute("src") || child.textContent || "");
-            if (mounted.has(key)) continue;
-            mounted.add(key);
-            const el = doc.createElement("script");
-            for (const { name: an, value } of [...child.attributes])
-              el.setAttribute(an, value);
-            if (child.textContent) el.textContent = child.textContent;
-            doc.head.appendChild(el);
-          } else if (tag === "LINK" || tag === "META") {
-            if (mayBePartial) continue;
-            const key = tag + "|" + (child.getAttribute("href") || child.getAttribute("src") || child.outerHTML);
-            if (mounted.has(key)) continue;
-            mounted.add(key);
-            doc.head.appendChild(child.cloneNode(true));
-          } else {
-            const key = name + "|" + i;
-            let el = live.get(key);
-            if (!el || el.tagName !== tag) {
-              if (el) el.remove();
-              el = doc.createElement(tag.toLowerCase());
-              live.set(key, el);
-              doc.head.appendChild(el);
-            }
-            for (const { name: an, value } of [...child.attributes]) {
-              if (el.getAttribute(an) !== value) el.setAttribute(an, value);
-            }
-            if (el.textContent !== child.textContent)
-              el.textContent = child.textContent;
-          }
-        }
-        return null;
+      // left side: never let it wedge in a corner — nudge it back into open play
+      const nearTB = ball.y < r + 120 || ball.y > h - r - 120;
+      if (ball.shot <= 0 && ball.x < r + 110 && nearTB) {
+        this._leftT = (this._leftT || 0) + 1;
+        if (this._leftT > 20) { ball.vx += 2.6; ball.vy += (ball.y > h / 2 ? -1.8 : 1.8); this._leftT = 0; }
+      } else { this._leftT = 0; }
+    };
+
+    const drawBallBody = () => {
+      const r = ball.r;
+      ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.ellipse(ball.x, ball.y + r * 0.92, r * 0.86, r * 0.26, 0, 0, 6.2832); ctx.fill();
+      ctx.save(); ctx.translate(ball.x, ball.y); ctx.rotate(ball.rot);
+      // white leather base
+      ctx.fillStyle = '#F4F3EF';
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.2832); ctx.fill();
+      // clip everything to the ball so rim panels read as partial pentagons
+      ctx.save(); ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.2832); ctx.clip();
+      const pentPath = (cx, cy, pr, rot) => {
+        ctx.beginPath();
+        for (let k = 0; k < 5; k++) { const a = rot - Math.PI / 2 + k * 2 * Math.PI / 5; const px = cx + Math.cos(a) * pr, py = cy + Math.sin(a) * pr; k ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+        ctx.closePath();
       };
-    }
-    return { compile, setDesignDocMode };
-  }
-
-  // src/pseudo.ts
-  function createPseudoSheet(doc) {
-    let el = null;
-    const cache = /* @__PURE__ */ new Map();
-    let n = 0;
-    return (pseudo, css) => {
-      const k = pseudo + "|" + css;
-      const hit = cache.get(k);
-      if (hit) return hit;
-      if (!el) {
-        el = doc.createElement("style");
-        doc.head.appendChild(el);
+      const cPr = r * 0.38;           // central pentagon radius
+      const oPr = r * 0.34;           // outer pentagon radius
+      const oDist = r * 1.0;          // outer pentagon centre distance
+      // ball is always white leather, so its markings stay dark in both themes
+      const ballDark = '#1A1915';
+      // seams: from each central-pentagon vertex out to the rim
+      ctx.strokeStyle = ballDark; ctx.globalAlpha = 0.5; ctx.lineWidth = r * 0.06; ctx.lineCap = 'round';
+      for (let k = 0; k < 5; k++) {
+        const a = -Math.PI / 2 + k * 2 * Math.PI / 5;
+        ctx.beginPath(); ctx.moveTo(Math.cos(a) * cPr, Math.sin(a) * cPr); ctx.lineTo(Math.cos(a) * r * 1.1, Math.sin(a) * r * 1.1); ctx.stroke();
       }
-      const cls = "scp" + (n++).toString(36);
-      const sel = pseudo === "before" || pseudo === "after" ? "." + cls + "::" + pseudo : "." + cls + ":" + pseudo;
-      el.sheet.insertRule(sel + "{" + css + "}", el.sheet.cssRules.length);
-      cache.set(k, cls);
-      return cls;
+      // outer black pentagons, offset 36° so they sit between the seams
+      ctx.fillStyle = ballDark; ctx.globalAlpha = 0.95;
+      for (let k = 0; k < 5; k++) {
+        const a = -Math.PI / 2 + Math.PI / 5 + k * 2 * Math.PI / 5;
+        pentPath(Math.cos(a) * oDist, Math.sin(a) * oDist, oPr, a + Math.PI / 2);
+        ctx.fill();
+      }
+      // central black pentagon (drawn last, on top)
+      ctx.fillStyle = ballDark; ctx.globalAlpha = 0.95;
+      pentPath(0, 0, cPr, 0); ctx.fill();
+      ctx.restore(); // undo clip
+      // rim + gloss
+      ctx.strokeStyle = ballDark; ctx.globalAlpha = 0.9; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.2832); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.ellipse(-r * 0.36, -r * 0.4, r * 0.24, r * 0.14, -0.6, 0, 6.2832); ctx.fill();
+      ctx.restore(); ctx.globalAlpha = 1;
     };
-  }
 
-  // src/registry.ts
-  function createRegistry() {
-    const entries = /* @__PURE__ */ Object.create(null);
-    function get(name) {
-      return entries[name] || (entries[name] = {
-        html: "",
-        tpl: null,
-        Logic: null,
-        jsStreaming: false,
-        htmlStreaming: false,
-        ver: 0,
-        subs: /* @__PURE__ */ new Set(),
-        fetched: false
+    const drawGoal = () => {
+      const g = goalGeom();
+      const flash = this._goalFlash ? Math.max(0, 1 - (performance.now() - this._goalFlash) / 750) : 0;
+      // net mesh
+      ctx.strokeStyle = pal.ink; ctx.lineWidth = 1; ctx.globalAlpha = 0.14 + flash * 0.5;
+      for (let y = g.gy0; y <= g.gy1; y += 9) { ctx.beginPath(); ctx.moveTo(g.netX, y); ctx.lineTo(w, y); ctx.stroke(); }
+      for (let x = g.netX; x <= w; x += 9) { ctx.beginPath(); ctx.moveTo(x, g.gy0); ctx.lineTo(x, g.gy1); ctx.stroke(); }
+      // frame (posts + crossbars)
+      ctx.strokeStyle = flash > 0 ? pal.accent : pal.ink;
+      ctx.globalAlpha = flash > 0 ? 0.7 + flash * 0.3 : 0.5; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(g.netX, g.gy0); ctx.lineTo(w, g.gy0);
+      ctx.moveTo(g.netX, g.gy1); ctx.lineTo(w, g.gy1);
+      ctx.moveTo(g.netX, g.gy0); ctx.lineTo(g.netX, g.gy1);
+      ctx.stroke();
+      // score readout + celebration
+      ctx.globalAlpha = 1; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = pal.muted; ctx.font = "600 12px 'JetBrains Mono', monospace";
+      ctx.fillText('GOALS · ' + (this._score || 0), w - 10, g.gy0 - 14);
+      if (flash > 0) { ctx.globalAlpha = flash; ctx.fillStyle = pal.accent; ctx.font = "700 18px 'Space Grotesk', system-ui, sans-serif"; ctx.fillText('GOAL!', w - 10, g.gy0 - 32); ctx.globalAlpha = 1; }
+      ctx.textAlign = 'left';
+    };
+
+    // combined play: drive the F1 car with your cursor to knock the ball into the goal
+    const drawPlay = () => {
+      if (this._mode !== 'blueprint') drawPenalty();
+      updateCar();
+      updateBall();
+      drawGoal();
+      drawBallBody();
+      drawCarBody();
+      drawRose();
+    };
+
+    // ===== alternate hero scenes (selected by this._look) =====
+    const FMONO = "'JetBrains Mono', monospace";
+    let scenePhase = 0, vFeat = null, petals = [], vines = null, icoData = null;
+    const arm = { a: -1.15, b: 1.0 };
+    const rot3s = (p, ax, ay) => {
+      const cy = Math.cos(ay), sy = Math.sin(ay);
+      const x1 = p.x * cy + p.z * sy, z1 = -p.x * sy + p.z * cy;
+      const cx = Math.cos(ax), sx = Math.sin(ax);
+      return { x: x1, y: p.y * cx - z1 * sx, z: p.y * sx + z1 * cx };
+    };
+
+    const drawGrid = () => {
+      const cols = Math.ceil(w / gap) + 1, rows = Math.ceil(h / gap) + 1;
+      for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+        const x = i * gap, y = j * gap, d = Math.hypot(x - mouse.x, y - mouse.y), R = 150;
+        if (d < R) { const t = 1 - d / R; ctx.fillStyle = pal.accent; ctx.globalAlpha = 0.25 + t * 0.75; ctx.beginPath(); ctx.arc(x, y, 1 + t * 3.2, 0, 6.2832); ctx.fill(); }
+        else { ctx.fillStyle = pal.dot; ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(x, y, 1, 0, 6.2832); ctx.fill(); }
+      }
+      ctx.globalAlpha = 1;
+    };
+
+    // 1) COMPUTER VISION — feature points, matches, tracking box
+    const drawVision = () => {
+      if (!vFeat || vFeat._w !== w) { vFeat = Array.from({ length: 66 }, () => ({ x: Math.random() * w, y: Math.random() * h, p: Math.random() * 6.28 })); vFeat._w = w; }
+      scenePhase += 0.016;
+      for (const f of vFeat) {
+        const jx = Math.cos(scenePhase + f.p) * 1.4, jy = Math.sin(scenePhase + f.p) * 1.4, d = Math.hypot(f.x - mouse.x, f.y - mouse.y);
+        ctx.strokeStyle = pal.ink; ctx.globalAlpha = d < 160 ? 0.5 : 0.16; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(f.x + jx - 3, f.y + jy); ctx.lineTo(f.x + jx + 3, f.y + jy); ctx.moveTo(f.x + jx, f.y + jy - 3); ctx.lineTo(f.x + jx, f.y + jy + 3); ctx.stroke();
+        if (mouse.on && d < 150) { ctx.strokeStyle = pal.accent; ctx.globalAlpha = (1 - d / 150) * 0.55; ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke(); }
+      }
+      const scanY = (scenePhase * 42) % h;
+      ctx.strokeStyle = pal.accent; ctx.globalAlpha = 0.22; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, scanY); ctx.lineTo(w, scanY); ctx.stroke();
+      ctx.globalAlpha = 1;
+      if (!this._vbox) this._vbox = { x: w / 2, y: h / 2 };
+      const tx = mouse.on ? mouse.x : w / 2, ty = mouse.on ? mouse.y : h / 2;
+      this._vbox.x += (tx - this._vbox.x) * 0.12; this._vbox.y += (ty - this._vbox.y) * 0.12;
+      const bw = 138, bh = 96, L = this._vbox.x - bw / 2, T = this._vbox.y - bh / 2, c = 15;
+      ctx.strokeStyle = pal.accent; ctx.lineWidth = 2; ctx.globalAlpha = 0.95;
+      const brk = (x, y, sx, sy) => { ctx.beginPath(); ctx.moveTo(x + sx * c, y); ctx.lineTo(x, y); ctx.lineTo(x, y + sy * c); ctx.stroke(); };
+      brk(L, T, 1, 1); brk(L + bw, T, -1, 1); brk(L, T + bh, 1, -1); brk(L + bw, T + bh, -1, -1);
+      ctx.globalAlpha = 0.45; ctx.beginPath(); ctx.moveTo(this._vbox.x - 8, this._vbox.y); ctx.lineTo(this._vbox.x + 8, this._vbox.y); ctx.moveTo(this._vbox.x, this._vbox.y - 8); ctx.lineTo(this._vbox.x, this._vbox.y + 8); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.fillStyle = pal.accent; ctx.fillRect(L, T - 17, 88, 14);
+      ctx.fillStyle = pal.bg2; ctx.font = "600 10px " + FMONO; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+      ctx.fillText('SUBJECT 0.97', L + 5, T - 6); ctx.globalAlpha = 1;
+    };
+
+    // 2) ROBOTICS — 2-link inverse-kinematics arm reaching for the cursor
+    const drawRobotics = () => {
+      const bx = w * 0.5, by = h - 26, L1 = Math.min(w, h) * 0.26, L2 = Math.min(w, h) * 0.23;
+      let tx = mouse.on ? mouse.x : w * 0.5 + Math.cos(scenePhase) * 120, ty = mouse.on ? mouse.y : h * 0.4;
+      scenePhase += 0.006;
+      let dx = tx - bx, dy = ty - by, dist = Math.hypot(dx, dy);
+      const maxR = (L1 + L2) * 0.98, minR = Math.abs(L1 - L2) + 10;
+      if (dist > maxR) { tx = bx + dx / dist * maxR; ty = by + dy / dist * maxR; } else if (dist < minR) { const a = Math.atan2(dy, dx); tx = bx + Math.cos(a) * minR; ty = by + Math.sin(a) * minR; }
+      dx = tx - bx; dy = ty - by;
+      const a2 = Math.acos(Math.min(1, Math.max(-1, (dx * dx + dy * dy - L1 * L1 - L2 * L2) / (2 * L1 * L2))));
+      const a1 = Math.atan2(dy, dx) - Math.atan2(L2 * Math.sin(a2), L1 + L2 * Math.cos(a2));
+      arm.a += (a1 - arm.a) * 0.16; arm.b += (a2 - arm.b) * 0.16;
+      const ex = bx + Math.cos(arm.a) * L1, ey = by + Math.sin(arm.a) * L1, hx = ex + Math.cos(arm.a + arm.b) * L2, hy = ey + Math.sin(arm.a + arm.b) * L2;
+      ctx.strokeStyle = pal.dot; ctx.globalAlpha = 1; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, by + 5); ctx.lineTo(w, by + 5); ctx.stroke();
+      ctx.fillStyle = pal.ink; ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.roundRect(bx - 28, by, 56, 18, 3); ctx.fill();
+      ctx.lineCap = 'round'; ctx.strokeStyle = pal.ink; ctx.globalAlpha = 0.9; ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.strokeStyle = pal.accent; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
+      ctx.fillStyle = pal.bg2; ctx.strokeStyle = pal.ink; ctx.lineWidth = 2; [[bx, by], [ex, ey]].forEach(([jx, jy]) => { ctx.beginPath(); ctx.arc(jx, jy, 6, 0, 6.28); ctx.fill(); ctx.stroke(); });
+      const ga = arm.a + arm.b, gpx = Math.cos(ga), gpy = Math.sin(ga), px = -gpy, py = gpx;
+      ctx.strokeStyle = pal.accent; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(hx + px * 7, hy + py * 7); ctx.lineTo(hx + px * 7 + gpx * 12, hy + py * 7 + gpy * 12); ctx.moveTo(hx - px * 7, hy - py * 7); ctx.lineTo(hx - px * 7 + gpx * 12, hy - py * 7 + gpy * 12); ctx.stroke();
+      ctx.strokeStyle = pal.accent; ctx.globalAlpha = 0.5; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(tx, ty, 11, 0, 6.28); ctx.stroke(); ctx.globalAlpha = 1;
+    };
+
+    // 3) FLORA — vines that sway toward the cursor, drifting petals on movement
+    const drawFlora = () => {
+      if (!vines || vines._w !== w) { vines = Array.from({ length: 5 }, (_, i) => ({ x: w * (0.13 + 0.185 * i), seg: 9 + (i % 3), ph: i * 1.3 })); vines._w = w; }
+      scenePhase += 0.01;
+      const lean = mouse.on ? (mouse.x / w - 0.5) : 0;
+      ctx.lineCap = 'round';
+      for (const v of vines) {
+        let x = v.x, y = h + 4, ang = -Math.PI / 2, len = Math.min(h * 0.52, 300) / v.seg;
+        for (let s = 0; s < v.seg; s++) {
+          ang += Math.sin(scenePhase * 1.3 + v.ph + s * 0.5) * 0.09 + lean * 0.1 * (s / v.seg);
+          const nx = x + Math.cos(ang) * len, ny = y + Math.sin(ang) * len;
+          ctx.strokeStyle = pal.ink; ctx.globalAlpha = 0.5; ctx.lineWidth = Math.max(1, 5 * (1 - s / v.seg));
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(nx, ny); ctx.stroke();
+          if (s % 2 === 1) { ctx.save(); ctx.translate(nx, ny); ctx.rotate(ang + (s % 4 ? 0.6 : -0.6)); ctx.fillStyle = pal.accent; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.ellipse(6, 0, 7, 3, 0, 0, 6.28); ctx.fill(); ctx.restore(); }
+          x = nx; y = ny;
+        }
+        ctx.fillStyle = pal.accent; ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 6.28); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      if (mouse.on && Math.hypot(mouse.vx, mouse.vy) > 3 && petals.length < 64) petals.push({ x: mouse.x, y: mouse.y, vx: (Math.random() - 0.5) * 0.7, vy: -0.5 - Math.random(), r: 3 + Math.random() * 3, life: 1, rot: Math.random() * 6.28 });
+      for (let i = petals.length - 1; i >= 0; i--) { const p = petals[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.008; p.life -= 0.006; p.rot += 0.03; if (p.life <= 0) { petals.splice(i, 1); continue; } ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = pal.accent; ctx.globalAlpha = p.life * 0.6; ctx.beginPath(); ctx.ellipse(0, 0, p.r, p.r * 0.5, 0, 0, 6.28); ctx.fill(); ctx.restore(); }
+      ctx.globalAlpha = 1;
+    };
+
+    // 4) 3D / VR — rotating wireframe icosahedron + perspective floor grid
+    const drawGraphics = () => {
+      scenePhase += 0.006;
+      const hz = h * 0.5;
+      ctx.strokeStyle = pal.ink; ctx.globalAlpha = 0.13; ctx.lineWidth = 1;
+      for (let i = 1; i <= 9; i++) { const y = hz + (h - hz) * (i / 9) * (i / 9); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+      for (let i = -9; i <= 9; i++) { const x = w / 2 + i * 74; ctx.beginPath(); ctx.moveTo(w / 2 + (x - w / 2) * 0.16, hz); ctx.lineTo(x, h); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+      if (!icoData) { const t = 1.618; const V = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]].map(v => ({ x: v[0], y: v[1], z: v[2] })); const E = []; for (let a = 0; a < 12; a++) for (let b = a + 1; b < 12; b++) if (Math.abs(Math.hypot(V[a].x - V[b].x, V[a].y - V[b].y, V[a].z - V[b].z) - 2) < 0.1) E.push([a, b]); icoData = { V, E }; }
+      const gx = w > 720 ? w * 0.72 : w * 0.5, gcy = h * 0.4, R = Math.min(w, h) * 0.2;
+      const ay = scenePhase + (mouse.on ? (mouse.x - gx) / w : 0), ax = 0.4 + (mouse.on ? (mouse.y - gcy) / h * 0.6 : 0);
+      const pr = icoData.V.map(v => rot3s(v, ax, ay));
+      ctx.strokeStyle = pal.accent; ctx.lineWidth = 1.2;
+      for (const [a, b] of icoData.E) { const pa = pr[a], pb = pr[b], za = (pa.z + pb.z) / 2; ctx.globalAlpha = 0.18 + (za * 0.5 + 0.5) * 0.6; ctx.beginPath(); ctx.moveTo(gx + pa.x / 2 * R, gcy - pa.y / 2 * R); ctx.lineTo(gx + pb.x / 2 * R, gcy - pb.y / 2 * R); ctx.stroke(); }
+      for (const p of pr) { ctx.fillStyle = pal.ink; ctx.globalAlpha = 0.3 + (p.z * 0.5 + 0.5) * 0.6; ctx.beginPath(); ctx.arc(gx + p.x / 2 * R, gcy - p.y / 2 * R, 2, 0, 6.28); ctx.fill(); }
+      ctx.globalAlpha = 1;
+    };
+
+    // 5) STADIUM — blooming blue rose, grandstand at the top, grass + flowers at the bottom,
+    //    and a faint soccer/F1 playfield under the game with shot telemetry
+    let bp = null;
+    const clamp01 = (v) => Math.max(0, Math.min(1, v));
+    const easeOut = (v) => v <= 0 ? 0 : v >= 1 ? 1 : 1 - Math.pow(1 - v, 3);
+
+    // shared blue rose — blooms above the headline in any hero mode, not just Stadium
+    let roseState = null;
+    const drawRose = () => {
+      if (!roseState) roseState = { born: performance.now(), fall: [], t: 0 };
+      if (this._bloomReset) { this._bloomReset = false; roseState.born = performance.now(); roseState.fall = []; }
+      roseState.t += 0.008;
+      const t = roseState.t;
+      // --- blue rose blooming from the top-left (hand-drawn, reference-inspired), anchored above the headline ---
+      const bloom = Math.min(1, (performance.now() - roseState.born) / 2600);
+      if (!this._heroH1 || !this._heroH1.isConnected) this._heroH1 = document.querySelector('#top h1');
+      let roseLimit = h * .3;
+      if (this._heroH1) { roseLimit = (this._heroH1.getBoundingClientRect().top - cv.getBoundingClientRect().top) - 46; }
+      const rs = clamp01((roseLimit - 20) / 110);
+      const s = .34 + rs * .66;
+      const reach = 40 * s;
+      const rx = 26 + 60 * s;
+      const ry = Math.max(reach * .7, Math.min(reach + 60 * s, roseLimit - reach - 4));
+      const RC = { outline: '#101c36', deep: '#1b3f8f', mid: '#2f7fe0', light: '#66c9f4', pale: '#b9ecff' };
+      const q = (a, b, c2, u2) => (1 - u2) * (1 - u2) * a + 2 * (1 - u2) * u2 * b + u2 * u2 * c2;
+      const sp = easeOut(Math.min(1, bloom * 1.6));
+      // thorny stem growing in from the corner
+      ctx.strokeStyle = RC.outline; ctx.globalAlpha = .8; ctx.lineWidth = 2.2 * s + .6; ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let i = 0; i <= 24; i++) { const u2 = (i / 24) * sp; const px = q(-4, rx * .7, rx, u2), py = q(-4, ry * .15, ry, u2); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+      ctx.stroke();
+      [.36, .62].forEach((u2, i2) => {
+        if (sp < u2 + .08) return;
+        const px = q(-4, rx * .7, rx, u2), py = q(-4, ry * .15, ry, u2);
+        ctx.fillStyle = RC.outline;
+        ctx.beginPath(); ctx.moveTo(px - 3, py + 1); ctx.lineTo(px + (i2 ? 3 : -1), py + (i2 ? 7 : 8)); ctx.lineTo(px + 3, py + 1); ctx.closePath(); ctx.fill();
       });
-    }
-    function bump(name) {
-      const r = get(name);
-      r.ver++;
-      for (const fn of r.subs) fn();
-    }
-    return {
-      entries,
-      get,
-      bump,
-      bumpAll() {
-        for (const n in entries) bump(n);
+      if (sp > .55) {
+        const px = q(-4, rx * .7, rx, .5), py = q(-4, ry * .15, ry, .5);
+        ctx.save(); ctx.translate(px, py); ctx.rotate(1.15); ctx.globalAlpha = .9 * easeOut((sp - .55) / .45);
+        ctx.fillStyle = RC.deep; ctx.strokeStyle = RC.outline; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.ellipse(10 * s + 4, 0, 9 * s + 3, 3.6 * s + 1.4, 0, 0, 6.2832); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(17 * s + 5, 0); ctx.stroke();
+        ctx.restore(); ctx.globalAlpha = 1;
+      }
+      // rose head — layered outlined petals with light rims + a spiral bud, unfurling inside-out
+      const petal = (ang, dist, pw, plh, open, fillA, fillB) => {
+        ctx.save(); ctx.rotate(ang); ctx.translate(0, -dist * open); ctx.scale(open, open); ctx.rotate((1 - open) * .6);
+        ctx.beginPath();
+        ctx.moveTo(0, plh * .45);
+        ctx.bezierCurveTo(-pw, plh * .3, -pw * 1.05, -plh * .5, 0, -plh);
+        ctx.bezierCurveTo(pw * 1.05, -plh * .5, pw, plh * .3, 0, plh * .45);
+        ctx.closePath();
+        ctx.fillStyle = fillA; ctx.fill();
+        ctx.strokeStyle = RC.outline; ctx.lineWidth = 1.4; ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, plh * .28);
+        ctx.bezierCurveTo(-pw * .55, plh * .16, -pw * .6, -plh * .34, 0, -plh * .62);
+        ctx.bezierCurveTo(pw * .6, -plh * .34, pw * .55, plh * .16, 0, plh * .28);
+        ctx.closePath();
+        ctx.fillStyle = fillB; ctx.globalAlpha = .85; ctx.fill(); ctx.globalAlpha = 1;
+        ctx.restore();
+      };
+      ctx.save(); ctx.translate(rx, ry); ctx.rotate(Math.sin(t * .5) * .05); ctx.scale(s, s); ctx.globalAlpha = .95;
+      const o1 = easeOut(clamp01(bloom * 2.6 - 1.6));
+      const o2 = easeOut(clamp01(bloom * 2.6 - .8));
+      const o3 = easeOut(clamp01(bloom * 2.6));
+      if (o1 > 0) for (let k = 0; k < 6; k++) petal(k * 1.047 + .3, 20, 13, 18, o1, RC.deep, RC.mid);
+      if (o2 > 0) for (let k = 0; k < 5; k++) petal(k * 1.257 + .9, 12, 10.5, 14, o2, RC.mid, RC.light);
+      if (o3 > 0) for (let k = 0; k < 4; k++) petal(k * 1.571 + .4, 6, 8, 10.5, o3, RC.light, RC.pale);
+      if (o3 > 0) {
+        ctx.fillStyle = RC.mid; ctx.globalAlpha = o3 * .95;
+        ctx.beginPath(); ctx.arc(0, 0, 5.5 * o3, 0, 6.2832); ctx.fill();
+        ctx.strokeStyle = RC.outline; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.globalAlpha = o3;
+        ctx.beginPath();
+        for (let i = 0; i <= 30; i++) { const a2 = i / 30 * 4.4; const rr2 = .4 + a2 * 1.25 * o3; const px = Math.cos(a2 + 1) * rr2, py = Math.sin(a2 + 1) * rr2; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+        ctx.stroke();
+      }
+      ctx.restore(); ctx.globalAlpha = 1;
+      // petals drift down from the bloom
+      if (bloom >= 1 && roseState.fall.length < 6 && Math.random() < .012) roseState.fall.push({ x: rx + (Math.random() - .5) * reach, y: ry + reach * .4, vy: .35 + Math.random() * .3, ph: Math.random() * 6.28, r: (3 + Math.random() * 2.5) * s, rot: Math.random() * 6.28 });
+      for (let i = roseState.fall.length - 1; i >= 0; i--) {
+        const p = roseState.fall[i]; p.y += p.vy; p.x += Math.sin(t * 2 + p.ph) * .5; p.rot += .02;
+        if (p.y > h - 24) { roseState.fall.splice(i, 1); continue; }
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = pal.accent; ctx.globalAlpha = Math.min(.5, (1 - p.y / h) * .8); ctx.beginPath(); ctx.ellipse(0, 0, p.r, p.r * .55, 0, 0, 6.2832); ctx.fill(); ctx.restore();
       }
     };
-  }
 
-  // src/runtime.ts
-  var COMPONENT_DIR = ".";
-  function createRuntime(doc = document) {
-    const registry = createRegistry();
-    const pseudoClass = createPseudoSheet(doc);
-    const helmet = createHelmetManager(
-      doc,
-      (name) => registry.get(name).htmlStreaming
-    );
-    const external = createExternalModules(() => registry.bumpAll());
-    const factory = createComponentFactory(registry, ensureFetched);
-    const host = {
-      component: (name) => factory.getDC(name),
-      placeholder: (props) => h(Placeholder, props),
-      helmet: (node) => helmet.compile(node),
-      loadExternal: (kind, url, after) => external.load(kind, url, after),
-      resolveExternal: (url, name) => external.resolve(url, name),
-      resolveExternalGlobal: (url, name) => external.resolveGlobal(url, name),
-      resolveExternalError: (url, name) => external.getError(url, name),
-      pseudoClass
+    const drawPenalty = () => {
+      const gg = goalGeom();
+      const inX = 26;
+      ctx.strokeStyle = pal.ink; ctx.globalAlpha = .1; ctx.lineWidth = 1.4;
+      const bxW = Math.min(150, w * .14), bxH = (gg.gy1 - gg.gy0) + 110;
+      ctx.strokeRect(w - inX - bxW, h / 2 - bxH / 2, bxW, bxH);
+      const sixW = bxW * .45, sixH = (gg.gy1 - gg.gy0) + 30;
+      ctx.strokeRect(w - inX - sixW, h / 2 - sixH / 2, sixW, sixH);
+      const spX = w - inX - bxW * .62;
+      ctx.fillStyle = pal.ink; ctx.beginPath(); ctx.arc(spX, h / 2, 2.2, 0, 6.2832); ctx.fill();
+      ctx.beginPath(); ctx.arc(spX, h / 2, 46, Math.PI * .68, Math.PI * 1.32); ctx.stroke();
+      ctx.globalAlpha = 1;
     };
-    function ensureFetched(name) {
-      const r = registry.get(name);
-      if (r.fetched) return;
-      r.fetched = true;
-      const url = COMPONENT_DIR + "/" + encodeURIComponent(name) + ".dc.html";
-      fetch(url).then((res) => {
-        if (!res.ok) {
-          console.error(
-            "[dc-runtime] sibling fetch for <" + name + "/> failed:",
-            url,
-            "returned",
-            res.status,
-            "\u2014 the reference renders as an empty placeholder."
-          );
-          return "";
+
+    // blue butterfly — flies in, lands on the E in SANE and sits still (drawn above the car)
+    const drawButterfly = () => {
+      if (!bp) return;
+      const nowB = performance.now();
+      if (!bp.bfStart) bp.bfStart = bp.born + 900;
+      const sane = document.querySelectorAll('#sane-letters > *');
+      if (sane.length >= 4 && sane[3].firstElementChild) {
+        const er = sane[3].firstElementChild.getBoundingClientRect(), cr2 = cv.getBoundingClientRect();
+        const ET = { x: er.left + er.width * .55 - cr2.left, y: er.top - cr2.top + 3 };
+        const A = { x: w * .62, y: -36 }, B = { x: w * .16, y: h * .3 }, C = { x: w * .07, y: h * .58 };
+        const cub = (a, b, c2, d2, uu) => { const v = 1 - uu; return v * v * v * a + 3 * v * v * uu * b + 3 * v * uu * uu * c2 + uu * uu * uu * d2; };
+        const u = clamp01((nowB - bp.bfStart) / 5200);
+        const e2 = u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+        const landed = u >= 1;
+        let bx = cub(A.x, B.x, C.x, ET.x, e2), by = cub(A.y, B.y, C.y, ET.y, e2);
+        const ha = clamp01(e2 + .02);
+        const angB = Math.atan2(cub(A.y, B.y, C.y, ET.y, ha) - by, cub(A.x, B.x, C.x, ET.x, ha) - bx) + Math.PI / 2;
+        if (!landed) {
+          const wig = (1 - e2) * 13;
+          bx += Math.sin(nowB * .011) * wig; by += Math.cos(nowB * .013) * wig * .6;
         }
-        return res.text();
-      }).then((t) => {
-        if (!t) return;
-        const parsed = parseDcText(t);
-        if (!parsed) {
-          console.error(
-            "[dc-runtime] sibling fetch for <" + name + "/>:",
-            url,
-            "has no <x-dc> block \u2014 not a Design Component."
-          );
-          return;
-        }
-        if (parsed.props) r.propsMeta = parsed.props;
-        if (parsed.preview) r.preview = parsed.preview;
-        if (parsed.template && !r.html) updateHtml(name, parsed.template);
-        if (parsed.js && !r.Logic) updateJs(name, parsed.js);
-      }).catch(
-        (e) => console.error(
-          "[dc-runtime] sibling fetch for <" + name + "/> threw:",
-          url,
-          e
-        )
-      );
-    }
-    let rootName = null;
-    function updateHtml(name, html) {
-      const r = registry.get(name);
-      r.html = html;
-      if (name === rootName) {
-        const mode = DESIGN_DOC_MODE_RE.exec(html)?.[1] ?? null;
-        if (mode || !r.htmlStreaming) helmet.setDesignDocMode(mode);
-      }
-      try {
-        r.tpl = compileTemplate(html, host);
-      } catch (e) {
-        console.error("[dc-runtime] template compile FAILED for", name, e);
-      }
-      registry.bump(name);
-    }
-    function updateJs(name, src) {
-      const r = registry.get(name);
-      const seq = r.jsSeq = (r.jsSeq || 0) + 1;
-      try {
-        const Cls = evalDcLogic(src);
-        if (r.jsSeq !== seq) return;
-        if (typeof Cls !== "function") {
-          r.logicError = name + ".dc.html: <script data-dc-script> must define `class Component extends DCLogic`";
+        let fl;
+        if (!landed) {
+          fl = Math.max(.25, Math.abs(Math.cos(nowB * .02)));
         } else {
-          r.logicError = null;
-          r.Logic = Cls;
+          const settleT = nowB - (bp.bfStart + 5200); // ms since it touched down
+          if (settleT < 1150) { const fade = 1 - settleT / 1150; fl = 1 - fade * .78 * Math.abs(Math.sin(settleT * .009)); }
+          else fl = 1; // finally at rest, wings open and still
         }
-      } catch (e) {
-        if (r.jsSeq !== seq) return;
-        console.error(
-          "[dc-runtime] logic class eval FAILED for",
-          name,
-          "\u2014 the template renders with props only.",
-          e
-        );
-        r.logicError = name + ": " + (e instanceof Error && e.message ? e.message : String(e));
-      }
-      registry.bump(name);
-    }
-    function setStreaming(name, kind, on) {
-      const r = registry.get(name);
-      if (kind === "html") r.htmlStreaming = !!on;
-      else r.jsStreaming = !!on;
-      let any = false;
-      for (const n in registry.entries) {
-        const e = registry.entries[n];
-        if (e && (e.htmlStreaming || e.jsStreaming)) {
-          any = true;
-          break;
-        }
-      }
-      doc.documentElement.classList.toggle("sc-dc-streaming", any);
-      registry.bump(name);
-    }
-    function dcUpdate(name, kind, content, streaming) {
-      if (streaming) registry.get(name).fetched = true;
-      if (kind === "html") {
-        setStreaming(name, "html", !!streaming);
-        updateHtml(name, content);
-      } else if (kind === "js") {
-        setStreaming(name, "js", !!streaming);
-        if (!streaming) updateJs(name, content);
-      } else if (kind === "props") {
-        const { props, preview } = parseDataProps(content);
-        const r = registry.get(name);
-        r.propsMeta = props ?? void 0;
-        r.preview = preview;
-        registry.bump(name);
-      }
-    }
-    function setProps(name, overrides) {
-      registry.get(name).propOverrides = overrides && typeof overrides === "object" ? { ...overrides } : null;
-      registry.bump(name);
-    }
-    function adoptParsed(name, parsed) {
-      if (!parsed) return;
-      const r = registry.get(name);
-      if (parsed.props) r.propsMeta = parsed.props;
-      if (parsed.preview) r.preview = parsed.preview;
-      if (parsed.template) updateHtml(name, parsed.template);
-      if (parsed.js) updateJs(name, parsed.js);
-    }
-    return {
-      registry,
-      getDC: factory.getDC,
-      updateHtml,
-      updateJs,
-      dcUpdate,
-      setProps,
-      adoptParsed,
-      setRootName: (name) => {
-        rootName = name;
-      },
-      markFetched: (name) => {
-        registry.get(name).fetched = true;
-      },
-      annotatedTemplate: (name) => {
-        const r = registry.get(name);
-        return r.tpl && r.tpl.__annotated || null;
-      },
-      templateSource: (name) => registry.get(name).html || null,
-      StreamableLogic
-    };
-  }
-
-  // src/index.ts
-  var REACT_URL = "https://unpkg.com/react@18.2.0/umd/react.production.min.js";
-  var REACT_SRI = "";
-  var REACT_DOM_URL = "https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js";
-  var REACT_DOM_SRI = "";
-  function hideRawTemplate() {
-    const s = document.createElement("style");
-    s.textContent = "x-dc{display:none!important}";
-    document.head.appendChild(s);
-  }
-  function loadScript(src, integrity) {
-    return new Promise((resolve2, reject) => {
-      //! nosemgrep: create-script-element
-      const s = document.createElement("script");
-      s.src = src;
-      s.integrity = integrity;
-      s.crossOrigin = "anonymous";
-      s.async = false;
-      s.onload = () => resolve2();
-      s.onerror = () => reject(new Error(`failed to load ${src}`));
-      document.head.appendChild(s);
-    });
-  }
-  function loadReactUmd() {
-    const w = window;
-    if (w.React && w.ReactDOM) return Promise.resolve();
-    return Promise.all([
-      loadScript(REACT_URL, REACT_SRI),
-      loadScript(REACT_DOM_URL, REACT_DOM_SRI)
-    ]).then(() => void 0);
-  }
-  function init() {
-    const runtime = createRuntime(document);
-    let rootName = "Root";
-    const baseCss = document.createElement("style");
-    baseCss.textContent = BASE_CSS;
-    document.head.prepend(baseCss);
-    const notifyHost = () => {
-      if (window.parent === window) return;
-      const r = runtime.registry.entries[rootName];
-      try {
-        window.parent.postMessage(
-          {
-            type: "__dc_booted",
-            rootName,
-            propsMeta: r && r.propsMeta || null,
-            preview: r && r.preview || null
-          },
-          "*"
-        );
-      } catch {
-      }
-    };
-    const api = {
-      __dcUpdate: (name, kind, content, streaming) => {
-        runtime.dcUpdate(name, kind, content, streaming);
-        if (name === rootName && !streaming && kind === "props") notifyHost();
-      },
-      __dcSetProps: (name, overrides) => runtime.setProps(name, overrides),
-      /** Name of the component currently mounted as the page root — DC tools
-       *  push their template-stream here when targeting "the open page". */
-      __dcRootName: () => rootName,
-      /** Editor bridge — the encoded, `data-dc-tpl`-annotated template source.
-       *  The host editor parses this into its own template DOM so it can map a
-       *  rendered node (carrying the same `data-dc-tpl`) back to the source
-       *  node that emitted it. Returns the encoded form (`<sc-comp>`,
-       *  `sc-camel-*` attrs); the editor decodes on serialize. */
-      __dcAnnotatedTemplate: (name) => runtime.annotatedTemplate(name),
-      /** Editor bridge — the *original* (decoded) template source. */
-      __dcTemplateSource: (name) => runtime.templateSource(name),
-      __dcBoot: () => {
-        rootName = boot(runtime, document) ?? rootName;
-        notifyHost();
-      },
-      __dcRegistry: runtime.registry.entries,
-      getDC: (name) => runtime.getDC(name),
-      // `DCLogic` is the documented base class name; `StreamableLogic` is the
-      // implementation alias kept for any project that already references it.
-      DCLogic: runtime.StreamableLogic,
-      StreamableLogic: runtime.StreamableLogic
-    };
-    Object.assign(window, api);
-    window.__dcContentKeyed = true;
-    if (document.readyState !== "loading") api.__dcBoot();
-    else document.addEventListener("DOMContentLoaded", () => api.__dcBoot());
-  }
-  hideRawTemplate();
-  loadReactUmd().then(init).catch((err) => {
-    console.error("[dc] failed to load React or boot:", err);
-    throw err;
-  });
-})();
-
-
-/* ================= <image-slot> web component ================= */
-// @ds-adherence-ignore -- omelette starter scaffold (raw elements/hex/px by design)
-/* BEGIN USAGE */
-/**
- * <image-slot> — user-fillable image placeholder.
- *
- * Drop this into a deck, mockup, or page wherever you want the user to
- * supply an image. You control the slot's shape and size; the user fills it
- * by dragging an image file onto it (or clicking to browse). The dropped
- * image persists across reloads via a .image-slots.state.json sidecar —
- * same read-via-fetch / write-via-window.omelette pattern as
- * design_canvas.jsx, so the filled slot shows on share links, downloaded
- * zips, and PPTX export. Outside the omelette runtime the slot is read-only.
- *
- * The host bridge only allows sidecar writes at the project root, so the
- * HTML that uses this component is assumed to live at the project root too
- * (same constraint as design_canvas.jsx).
- *
- * Attributes:
- *   id           Persistence key. REQUIRED for the drop to survive reload —
- *                every slot on the page needs a distinct id.
- *   shape        'rect' | 'rounded' | 'circle' | 'pill'   (default 'rounded')
- *                'circle' applies 50% border-radius; on a non-square slot
- *                that's an ellipse — set equal width and height for a true
- *                circle.
- *   radius       Corner radius in px for 'rounded'.       (default 12)
- *   mask         Any CSS clip-path value. Overrides `shape` — use this for
- *                hexagons, blobs, arbitrary polygons.
- *   fit          object-fit: cover | contain | fill.       (default 'cover')
- *                With cover (the default) double-clicking the filled slot
- *                enters a reframe mode: the whole image spills past the mask
- *                (translucent outside, opaque inside), drag to reposition,
- *                corner-drag to scale. The crop persists alongside the image
- *                in the sidecar. contain/fill stay static.
- *   position     object-position for fit=contain|fill.     (default '50% 50%')
- *   placeholder  Empty-state caption.                      (default 'Drop an image')
- *   src          Optional initial/fallback image URL. A user drop overrides
- *                it; clearing the drop reveals src again.
- *
- * Size and layout come from ordinary CSS on the element — width/height
- * inline or from a parent grid — so it composes with any layout.
- *
- * Usage:
- *   <image-slot id="hero"   style="width:800px;height:450px" shape="rounded" radius="20"
- *               placeholder="Drop a hero image"></image-slot>
- *   <image-slot id="avatar" style="width:120px;height:120px" shape="circle"></image-slot>
- *   <image-slot id="kite"   style="width:300px;height:300px"
- *               mask="polygon(50% 0, 100% 50%, 50% 100%, 0 50%)"></image-slot>
- */
-/* END USAGE */
-
-(() => {
-  const STATE_FILE = '.image-slots.state.json';
-  // 2× a ~600px slot in a 1920-wide deck — retina-sharp without making the
-  // sidecar enormous. A 1200px WebP at q=0.85 is ~150-300KB.
-  const MAX_DIM = 1200;
-  // Raster formats only. SVG is excluded (can carry script; createImageBitmap
-  // on SVG blobs is inconsistent). GIF is excluded because the canvas
-  // re-encode keeps only the first frame, so an animated GIF would silently
-  // go still — better to reject than surprise.
-  const ACCEPT = ['image/png', 'image/jpeg', 'image/webp', 'image/avif'];
-
-  // ── Shared sidecar store ────────────────────────────────────────────────
-  // One fetch + immediate write-on-change for every <image-slot> on the
-  // page. Reads via fetch() so viewing works anywhere the HTML and sidecar
-  // are served together; writes go through window.omelette.writeFile, which
-  // the host allowlists to *.state.json basenames only.
-  const subs = new Set();
-  let slots = {};
-  // ids explicitly cleared before the sidecar fetch resolved — otherwise
-  // the merge below can't tell "never set" from "just deleted" and would
-  // resurrect the sidecar's stale value.
-  const tombstones = new Set();
-  let loaded = false;
-  let loadP = null;
-
-  function load() {
-    if (loadP) return loadP;
-    loadP = fetch(STATE_FILE)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        // Merge: sidecar loses to any in-memory change that raced ahead of
-        // the fetch (drop or clear) so neither is clobbered by hydration.
-        if (j && typeof j === 'object') {
-          const merged = Object.assign({}, j, slots);
-          // A framing-only write that raced ahead of hydration must not
-          // drop a user image that's only on disk — inherit u from the
-          // sidecar for any in-memory entry that lacks one.
-          for (const k in slots) {
-            if (merged[k] && !merged[k].u && j[k]) {
-              merged[k].u = typeof j[k] === 'string' ? j[k] : j[k].u;
-            }
-          }
-          for (const id of tombstones) delete merged[id];
-          slots = merged;
-        }
-        tombstones.clear();
-      })
-      .catch(() => {})
-      .then(() => { loaded = true; subs.forEach((fn) => fn()); });
-    return loadP;
-  }
-
-  // Serialize writes so two near-simultaneous drops on different slots
-  // can't reorder at the backend and leave the sidecar with only the
-  // first. A save requested mid-flight just marks dirty and re-fires on
-  // completion with the then-current slots.
-  let saving = false;
-  let saveDirty = false;
-  function save() {
-    if (saving) { saveDirty = true; return; }
-    const w = window.omelette && window.omelette.writeFile;
-    if (!w) return;
-    saving = true;
-    Promise.resolve(w(STATE_FILE, JSON.stringify(slots)))
-      .catch(() => {})
-      .then(() => { saving = false; if (saveDirty) { saveDirty = false; save(); } });
-  }
-
-  const S_MAX = 5;
-  const clampS = (s) => Math.max(1, Math.min(S_MAX, s));
-
-  // Normalize a stored slot value. Pre-reframe sidecars stored a bare
-  // data-URL string; newer ones store {u, s, x, y}. Either shape is valid.
-  function getSlot(id) {
-    const v = slots[id];
-    if (!v) return null;
-    return typeof v === 'string' ? { u: v, s: 1, x: 0, y: 0 } : v;
-  }
-
-  function setSlot(id, val) {
-    if (!id) return;
-    if (val) { slots[id] = val; tombstones.delete(id); }
-    else { delete slots[id]; if (!loaded) tombstones.add(id); }
-    subs.forEach((fn) => fn());
-    // A drop is rare + high-value — write immediately so nav-away can't lose
-    // it. Gate on the initial read so we don't overwrite a sidecar we haven't
-    // merged yet; the merge in load() keeps this change once the read lands.
-    if (loaded) save(); else load().then(save);
-  }
-
-  // ── Image downscale ─────────────────────────────────────────────────────
-  // Encode through a canvas so the sidecar carries resized bytes, not the
-  // raw upload. Longest side is capped at 2× the slot's rendered width
-  // (retina) and at MAX_DIM. WebP keeps alpha and is ~10× smaller than PNG
-  // for photos, so there's no need for per-image format picking.
-  async function toDataUrl(file, targetW) {
-    const bitmap = await createImageBitmap(file);
-    try {
-      const cap = Math.min(MAX_DIM, Math.max(1, Math.round(targetW * 2)) || MAX_DIM);
-      const scale = Math.min(1, cap / Math.max(bitmap.width, bitmap.height));
-      const w = Math.max(1, Math.round(bitmap.width * scale));
-      const h = Math.max(1, Math.round(bitmap.height * scale));
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
-      return canvas.toDataURL('image/webp', 0.85);
-    } finally {
-      bitmap.close && bitmap.close();
-    }
-  }
-
-  // ── Custom element ──────────────────────────────────────────────────────
-  const stylesheet =
-    ':host{display:inline-block;position:relative;vertical-align:top;' +
-    '  font:13px/1.3 system-ui,-apple-system,sans-serif;color:rgba(0,0,0,.55);width:240px;height:160px}' +
-    '.frame{position:absolute;inset:0;overflow:hidden;background:rgba(0,0,0,.04)}' +
-    // .frame img (clipped) and .spill (unclipped ghost + handles) share the
-    // same left/top/width/height in frame-%, computed by _applyView(), so the
-    // inside-mask crop and the outside-mask spill stay pixel-aligned.
-    '.frame img{position:absolute;max-width:none;transform:translate(-50%,-50%);' +
-    '  -webkit-user-drag:none;user-select:none;touch-action:none}' +
-    // Reframe mode (double-click): the full image spills past the mask. The
-    // spill layer is sized to the IMAGE bounds so its corners are where the
-    // resize handles belong. The ghost <img> inside is translucent; the real
-    // clipped <img> underneath shows the opaque in-mask crop.
-    '.spill{position:absolute;transform:translate(-50%,-50%);display:none;z-index:1;' +
-    '  cursor:grab;touch-action:none}' +
-    ':host([data-panning]) .spill{cursor:grabbing}' +
-    '.spill .ghost{position:absolute;inset:0;width:100%;height:100%;opacity:.35;' +
-    '  pointer-events:none;-webkit-user-drag:none;user-select:none;' +
-    '  box-shadow:0 0 0 1px rgba(0,0,0,.2),0 12px 32px rgba(0,0,0,.2)}' +
-    '.spill .handle{position:absolute;width:12px;height:12px;border-radius:50%;' +
-    '  background:#fff;box-shadow:0 0 0 1.5px #c96442,0 1px 3px rgba(0,0,0,.3);' +
-    '  transform:translate(-50%,-50%)}' +
-    '.spill .handle[data-c=nw]{left:0;top:0;cursor:nwse-resize}' +
-    '.spill .handle[data-c=ne]{left:100%;top:0;cursor:nesw-resize}' +
-    '.spill .handle[data-c=sw]{left:0;top:100%;cursor:nesw-resize}' +
-    '.spill .handle[data-c=se]{left:100%;top:100%;cursor:nwse-resize}' +
-    ':host([data-reframe]){z-index:10}' +
-    ':host([data-reframe]) .spill{display:block}' +
-    ':host([data-reframe]) .frame{box-shadow:0 0 0 2px #c96442}' +
-    '.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;' +
-    '  justify-content:center;gap:6px;text-align:center;padding:12px;box-sizing:border-box;' +
-    '  cursor:pointer;user-select:none}' +
-    '.empty svg{opacity:.45}' +
-    '.empty .cap{max-width:90%;font-weight:500;letter-spacing:.01em}' +
-    '.empty .sub{font-size:11px}' +
-    '.empty .sub u{text-underline-offset:2px;text-decoration-color:rgba(0,0,0,.25)}' +
-    '.empty:hover .sub u{color:rgba(0,0,0,.75);text-decoration-color:currentColor}' +
-    ':host([data-over]) .frame{outline:2px solid #c96442;outline-offset:-2px;' +
-    '  background:rgba(201,100,66,.10)}' +
-    '.ring{position:absolute;inset:0;pointer-events:none;border:1.5px dashed rgba(0,0,0,.25);' +
-    '  transition:border-color .12s}' +
-    ':host([data-over]) .ring{border-color:#c96442}' +
-    ':host([data-filled]) .ring{display:none}' +
-    // Controls sit BELOW the mask (top:100%), absolutely positioned so the
-    // author-declared slot height is unaffected. The gap is padding, not a
-    // top offset, so the hover target stays contiguous with the frame.
-    '.ctl{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding-top:8px;' +
-    '  display:flex;gap:6px;opacity:0;pointer-events:none;transition:opacity .12s;z-index:2;' +
-    '  white-space:nowrap}' +
-    ':host([data-filled][data-editable]:hover) .ctl,:host([data-reframe]) .ctl' +
-    '  {opacity:1;pointer-events:auto}' +
-    '.ctl button{appearance:none;border:0;border-radius:6px;padding:5px 10px;cursor:pointer;' +
-    '  background:rgba(0,0,0,.65);color:#fff;font:11px/1 system-ui,-apple-system,sans-serif;' +
-    '  backdrop-filter:blur(6px)}' +
-    '.ctl button:hover{background:rgba(0,0,0,.8)}' +
-    '.err{position:absolute;left:8px;bottom:8px;right:8px;color:#b3261e;font-size:11px;' +
-    '  background:rgba(255,255,255,.85);padding:4px 6px;border-radius:5px;pointer-events:none}';
-
-  const icon =
-    '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-    'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>' +
-    '<path d="m21 15-5-5L5 21"/></svg>';
-
-  class ImageSlot extends HTMLElement {
-    static get observedAttributes() {
-      return ['shape', 'radius', 'mask', 'fit', 'position', 'placeholder', 'src', 'id'];
-    }
-
-    constructor() {
-      super();
-      const root = this.attachShadow({ mode: 'open' });
-      // .spill and .ctl sit OUTSIDE .frame so overflow:hidden + border-radius
-      // on the frame (circle, pill, rounded) can't clip them.
-      root.innerHTML =
-        '<style>' + stylesheet + '</style>' +
-        '<div class="frame" part="frame">' +
-        '  <img part="image" alt="" draggable="false" style="display:none">' +
-        '  <div class="empty" part="empty">' + icon +
-        '    <div class="cap"></div>' +
-        '    <div class="sub">or <u>browse files</u></div></div>' +
-        '  <div class="ring" part="ring"></div>' +
-        '</div>' +
-        '<div class="spill">' +
-        '  <img class="ghost" alt="" draggable="false">' +
-        '  <div class="handle" data-c="nw"></div><div class="handle" data-c="ne"></div>' +
-        '  <div class="handle" data-c="sw"></div><div class="handle" data-c="se"></div>' +
-        '</div>' +
-        '<div class="ctl"><button data-act="replace" title="Replace image">Replace</button>' +
-        '  <button data-act="clear" title="Remove image">Remove</button></div>' +
-        '<input type="file" accept="' + ACCEPT.join(',') + '" hidden>';
-      this._frame = root.querySelector('.frame');
-      this._ring = root.querySelector('.ring');
-      this._img = root.querySelector('.frame img');
-      this._empty = root.querySelector('.empty');
-      this._cap = root.querySelector('.cap');
-      this._sub = root.querySelector('.sub');
-      this._spill = root.querySelector('.spill');
-      this._ghost = root.querySelector('.ghost');
-      this._err = null;
-      this._input = root.querySelector('input');
-      this._depth = 0;
-      this._gen = 0;
-      this._view = { s: 1, x: 0, y: 0 };
-      this._subFn = () => this._render();
-      // Shadow-DOM listeners live with the shadow DOM — bound once here so
-      // disconnect/reconnect (e.g. React remount) doesn't stack handlers.
-      this._empty.addEventListener('click', () => this._input.click());
-      root.addEventListener('click', (e) => {
-        const act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
-        if (act === 'replace') { this._exitReframe(true); this._input.click(); }
-        if (act === 'clear') {
-          this._exitReframe(false);
-          this._gen++;
-          this._local = null;
-          if (this.id) setSlot(this.id, null); else this._render();
-        }
-      });
-      this._input.addEventListener('change', () => {
-        const f = this._input.files && this._input.files[0];
-        if (f) this._ingest(f);
-        this._input.value = '';
-      });
-      // naturalWidth/Height aren't known until load — re-apply so the cover
-      // baseline is computed from real dimensions, not the 100%×100% fallback.
-      this._img.addEventListener('load', () => this._applyView());
-      // Gated on editable + fit=cover so share links and contain/fill slots
-      // stay static.
-      this.addEventListener('dblclick', (e) => {
-        if (!this.hasAttribute('data-editable') || !this._reframes()) return;
-        e.preventDefault();
-        if (this.hasAttribute('data-reframe')) this._exitReframe(true);
-        else this._enterReframe();
-      });
-      // Pan + resize both originate on the spill layer. A handle pointerdown
-      // drives an aspect-locked resize anchored at the opposite corner; any
-      // other pointerdown on the spill pans. Offsets are frame-% so a
-      // reframed slot survives responsive resize / PPTX export.
-      this._spill.addEventListener('pointerdown', (e) => {
-        if (e.button !== 0 || !this.hasAttribute('data-reframe')) return;
-        e.preventDefault();
-        e.stopPropagation();
-        this._spill.setPointerCapture(e.pointerId);
-        const rect = this.getBoundingClientRect();
-        const fw = rect.width || 1, fh = rect.height || 1;
-        const corner = e.target.getAttribute && e.target.getAttribute('data-c');
-        let move;
-        if (corner) {
-          // Resize about the OPPOSITE corner. Viewport-px throughout (rect
-          // fw/fh, not clientWidth) so the math survives a transform:scale()
-          // ancestor — deck_stage renders slides scaled-to-fit.
-          const iw = this._img.naturalWidth || 1, ih = this._img.naturalHeight || 1;
-          const base = Math.max(fw / iw, fh / ih);
-          const sx = corner.includes('e') ? 1 : -1;
-          const sy = corner.includes('s') ? 1 : -1;
-          const s0 = this._view.s;
-          const w0 = iw * base * s0, h0 = ih * base * s0;
-          const cx0 = (50 + this._view.x) / 100 * fw;
-          const cy0 = (50 + this._view.y) / 100 * fh;
-          const ox = cx0 - sx * w0 / 2, oy = cy0 - sy * h0 / 2;
-          const diag0 = Math.hypot(w0, h0);
-          const ux = sx * w0 / diag0, uy = sy * h0 / diag0;
-          move = (ev) => {
-            const proj = (ev.clientX - rect.left - ox) * ux +
-                         (ev.clientY - rect.top - oy) * uy;
-            const s = clampS(s0 * proj / diag0);
-            const d = diag0 * s / s0;
-            this._view.s = s;
-            this._view.x = (ox + ux * d / 2) / fw * 100 - 50;
-            this._view.y = (oy + uy * d / 2) / fh * 100 - 50;
-            this._clampView();
-            this._applyView();
-          };
-        } else {
-          this.setAttribute('data-panning', '');
-          const start = { px: e.clientX, py: e.clientY, x: this._view.x, y: this._view.y };
-          move = (ev) => {
-            this._view.x = start.x + (ev.clientX - start.px) / fw * 100;
-            this._view.y = start.y + (ev.clientY - start.py) / fh * 100;
-            this._clampView();
-            this._applyView();
-          };
-        }
-        const up = () => {
-          try { this._spill.releasePointerCapture(e.pointerId); } catch {}
-          this._spill.removeEventListener('pointermove', move);
-          this._spill.removeEventListener('pointerup', up);
-          this._spill.removeEventListener('pointercancel', up);
-          this.removeAttribute('data-panning');
-          this._dragUp = null;
+        ctx.save(); ctx.translate(bx, by); ctx.rotate(landed ? 0 : angB);
+        const wingB = (side) => {
+          ctx.save(); ctx.scale(side * fl, 1);
+          ctx.fillStyle = '#2f7fe0'; ctx.strokeStyle = '#101c36'; ctx.lineWidth = 1; ctx.globalAlpha = .95;
+          ctx.beginPath(); ctx.ellipse(7.5, -4, 7, 5.2, -.5, 0, 6.2832); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = '#66c9f4';
+          ctx.beginPath(); ctx.ellipse(6, 3.5, 5, 4, .5, 0, 6.2832); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = 'rgba(255,255,255,.55)';
+          ctx.beginPath(); ctx.ellipse(8, -4.5, 2.6, 1.7, -.5, 0, 6.2832); ctx.fill();
+          ctx.restore();
         };
-        // Stashed so _exitReframe (Escape / outside-click mid-drag) can
-        // tear the capture + listeners down synchronously.
-        this._dragUp = up;
-        this._spill.addEventListener('pointermove', move);
-        this._spill.addEventListener('pointerup', up);
-        this._spill.addEventListener('pointercancel', up);
-      });
-      // Wheel zoom stays available inside reframe mode as a trackpad nicety —
-      // zooms toward the cursor (offset' = cursor·(1-k) + offset·k).
-      this.addEventListener('wheel', (e) => {
-        if (!this.hasAttribute('data-reframe')) return;
-        e.preventDefault();
-        const r = this.getBoundingClientRect();
-        const cx = (e.clientX - r.left) / r.width * 100 - 50;
-        const cy = (e.clientY - r.top) / r.height * 100 - 50;
-        const prev = this._view.s;
-        const next = clampS(prev * Math.pow(1.0015, -e.deltaY));
-        if (next === prev) return;
-        const k = next / prev;
-        this._view.s = next;
-        this._view.x = cx * (1 - k) + this._view.x * k;
-        this._view.y = cy * (1 - k) + this._view.y * k;
-        this._clampView();
-        this._applyView();
-      }, { passive: false });
-    }
-
-    connectedCallback() {
-      // Warn once per page — an id-less slot works for the session but
-      // cannot persist, and two id-less slots would share nothing.
-      if (!this.id && !ImageSlot._warned) {
-        ImageSlot._warned = true;
-        console.warn('<image-slot> without an id will not persist its dropped image.');
+        wingB(1); wingB(-1);
+        ctx.fillStyle = '#101c36'; ctx.globalAlpha = 1;
+        ctx.beginPath(); ctx.ellipse(0, 0, 1.8, 6, 0, 0, 6.2832); ctx.fill();
+        ctx.strokeStyle = '#101c36'; ctx.lineWidth = 1; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(0, -5.5); ctx.quadraticCurveTo(-3, -10, -4.5, -11); ctx.moveTo(0, -5.5); ctx.quadraticCurveTo(3, -10, 4.5, -11); ctx.stroke();
+        ctx.restore();
       }
-      this.addEventListener('dragenter', this);
-      this.addEventListener('dragover', this);
-      this.addEventListener('dragleave', this);
-      this.addEventListener('drop', this);
-      subs.add(this._subFn);
-      // width%/height% in _applyView encode the frame aspect at call time —
-      // a host resize (responsive grid, pane divider) would stretch the
-      // image until the next _render. Re-render on size change: _render()
-      // re-seeds _view from stored before clamp/apply, so a shrink→grow
-      // cycle round-trips instead of ratcheting x/y toward the narrower
-      // frame's clamp range.
-      this._ro = new ResizeObserver(() => this._render());
-      this._ro.observe(this);
-      load();
-      this._render();
-    }
+    };
 
-    disconnectedCallback() {
-      subs.delete(this._subFn);
-      this.removeEventListener('dragenter', this);
-      this.removeEventListener('dragover', this);
-      this.removeEventListener('dragleave', this);
-      this.removeEventListener('drop', this);
-      if (this._ro) { this._ro.disconnect(); this._ro = null; }
-      this._exitReframe(false);
-    }
+    const drawBlueprint = () => {
+      scenePhase += 0.008;
+      const t = scenePhase;
+      if (!bp) bp = { born: performance.now(), grass: [], flowers: Array.from({ length: 7 }, (_, i) => ({ fx: .05 + i * .14 + Math.random() * .05, s: .7 + Math.random() * .5, ph: Math.random() * 6.28 })), fall: [], _w: -1 };
+      if (this._bloomReset) { this._bloomReset = false; bp.born = performance.now(); bp.fall = []; bp.bfStart = 0; }
+      if (bp._w !== w) {
+        bp._w = w; bp.grass = [];
+        const greens = ['#3F7A34', '#4E8B3B', '#5FA24A', '#6FB257', '#356B2C', '#7DBB5F'];
+        for (let x = 1; x < w; x += 4 + Math.random() * 3.5) bp.grass.push({ x, len: 18 + Math.random() * 30, wd: 2.2 + Math.random() * 2.4, ph: Math.random() * 6.28, bend: 0, c: greens[(Math.random() * greens.length) | 0], dir: Math.random() < .5 ? -1 : 1 });
+        bp.grass.sort((a, b) => a.len - b.len);
+      }
+      ctx.lineCap = 'butt'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 
-    _enterReframe() {
-      if (this.hasAttribute('data-reframe')) return;
-      this.setAttribute('data-reframe', '');
-      this._applyView();
-      // Close on click outside (the spill handler stopPropagation()s so
-      // in-image drags don't reach this) and on Escape. Listeners are held
-      // on the instance so _exitReframe / disconnectedCallback can detach
-      // exactly what was attached.
-      this._outside = (e) => {
-        if (e.composedPath && e.composedPath().includes(this)) return;
-        this._exitReframe(true);
+      // --- faint playfield: penalty box only (no boundary, no centre circle) ---
+      drawPenalty();
+
+      // --- grandstand tiers + crowd across the top ---
+      for (let r2 = 0; r2 < 3; r2++) {
+        const y0 = 10 + r2 * 11, sag = 14 + r2 * 5;
+        ctx.strokeStyle = pal.ink; ctx.globalAlpha = .16; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, y0); ctx.quadraticCurveTo(w / 2, y0 + sag * 2, w, y0); ctx.stroke();
+      }
+      ctx.fillStyle = pal.ink;
+      for (let i = 0; i < w / 13; i++) {
+        const x = i * 13 + 6, u = x / w;
+        for (let r2 = 0; r2 < 2; r2++) {
+          const yy = (10 + r2 * 11) + 2 * u * (1 - u) * (14 + r2 * 5) * 2 + 5.5;
+          const bob = ((i * 7 + r2 * 13) % 5 === 0) ? Math.sin(t * 2 + i) * 1.2 : 0;
+          ctx.globalAlpha = .13; ctx.beginPath(); ctx.arc(x, yy + bob, 1.5, 0, 6.2832); ctx.fill();
+        }
+      }
+      // floodlights
+      const flood = (fx) => {
+        const x = fx * w;
+        ctx.strokeStyle = pal.ink; ctx.globalAlpha = .2; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(x, 54); ctx.lineTo(x, 21); ctx.stroke();
+        ctx.strokeRect(x - 10, 8, 20, 13);
+        ctx.fillStyle = pal.accent;
+        for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { ctx.globalAlpha = .28 + .12 * Math.sin(t * 3 + i + j); ctx.beginPath(); ctx.arc(x - 6 + i * 6, 11.5 + j * 5.5, 1.4, 0, 6.2832); ctx.fill(); }
       };
-      this._esc = (e) => { if (e.key === 'Escape') this._exitReframe(true); };
-      document.addEventListener('pointerdown', this._outside, true);
-      document.addEventListener('keydown', this._esc, true);
-    }
+      flood(.12); flood(.88);
+      ctx.globalAlpha = 1;
 
-    _exitReframe(commit) {
-      if (!this.hasAttribute('data-reframe')) return;
-      if (this._dragUp) this._dragUp();
-      this.removeAttribute('data-reframe');
-      this.removeAttribute('data-panning');
-      if (this._outside) document.removeEventListener('pointerdown', this._outside, true);
-      if (this._esc) document.removeEventListener('keydown', this._esc, true);
-      this._outside = this._esc = null;
-      if (commit) this._commitView();
-    }
+      // --- rose is drawn once per frame via drawPlay() (called right after drawBlueprint) ---
 
-    attributeChangedCallback() { if (this.shadowRoot) this._render(); }
+      // --- blue butterfly (drawn after the car, in the draw loop) ---
 
-    // handleEvent — one listener object for all four drag events keeps the
-    // add/remove symmetric and the depth counter correct.
-    handleEvent(e) {
-      if (e.type === 'dragenter' || e.type === 'dragover') {
-        // Without preventDefault the browser never fires 'drop'.
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-        if (e.type === 'dragenter') this._depth++;
-        this.setAttribute('data-over', '');
-      } else if (e.type === 'dragleave') {
-        // dragenter/leave fire for every descendant crossing — count depth
-        // so hovering the icon inside the empty state doesn't flicker.
-        if (--this._depth <= 0) { this._depth = 0; this.removeAttribute('data-over'); }
-      } else if (e.type === 'drop') {
-        e.preventDefault();
-        e.stopPropagation();
-        this._depth = 0;
-        this.removeAttribute('data-over');
-        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-        if (f) this._ingest(f);
+      // --- bottom crowd row behind the grass ---
+      ctx.fillStyle = pal.ink;
+      for (let i = 0; i < w / 15; i++) {
+        const x = i * 15 + 8;
+        for (let r2 = 0; r2 < 2; r2++) {
+          const bob = ((i * 5 + r2 * 3) % 4 === 0) ? Math.sin(t * 2.2 + i) * 1.3 : 0;
+          ctx.globalAlpha = .12; ctx.beginPath(); ctx.arc(x + r2 * 7, h - 48 + r2 * 9 + bob, 1.7, 0, 6.2832); ctx.fill();
+        }
       }
-    }
 
-    async _ingest(file) {
-      this._setError(null);
-      if (!file || ACCEPT.indexOf(file.type) < 0) {
-        this._setError('Drop a PNG, JPEG, WebP, or AVIF image.');
-        return;
+      for (const f of bp.flowers) {
+        const x = f.fx * w, hgt = 27 * f.s, sway = Math.sin(t * 1.2 + f.ph) * 2.4;
+        ctx.strokeStyle = pal.ink; ctx.globalAlpha = .36; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(x, h); ctx.quadraticCurveTo(x + sway * .4, h - hgt * .6, x + sway, h - hgt); ctx.stroke();
+        ctx.save(); ctx.translate(x + sway, h - hgt); ctx.rotate(Math.sin(t + f.ph) * .15);
+        ctx.fillStyle = pal.accent;
+        for (let k = 0; k < 5; k++) { const a = k * 1.2566; ctx.globalAlpha = .5; ctx.beginPath(); ctx.ellipse(Math.cos(a) * 4.2 * f.s, Math.sin(a) * 4.2 * f.s, 3.2 * f.s, 2 * f.s, a, 0, 6.2832); ctx.fill(); }
+        ctx.fillStyle = pal.bg2; ctx.globalAlpha = .9; ctx.beginPath(); ctx.arc(0, 0, 1.6 * f.s, 0, 6.2832); ctx.fill();
+        ctx.restore();
       }
-      // toDataUrl can take hundreds of ms on a large photo. A Clear or a
-      // newer drop during that window would be clobbered when this await
-      // resumes — bump + capture a generation so stale encodes bail.
-      const gen = ++this._gen;
-      try {
-        const w = this.clientWidth || this.offsetWidth || MAX_DIM;
-        const url = await toDataUrl(file, w);
-        if (gen !== this._gen) return;
-        // Only exit reframe once the new image is in hand — a rejected type
-        // or decode failure leaves the in-progress crop untouched.
-        this._exitReframe(false);
-        const val = { u: url, s: 1, x: 0, y: 0 };
-        setSlot(this.id || '', val);
-        // Keep a session-local copy for id-less slots so the drop still
-        // shows, even though it cannot persist.
-        if (!this.id) { this._local = val; this._render(); }
-      } catch (err) {
-        if (gen !== this._gen) return;
-        this._setError('Could not read that image.');
-        console.warn('<image-slot> ingest failed:', err);
-      }
-    }
+      ctx.globalAlpha = 1;
 
-    _setError(msg) {
-      if (this._err) { this._err.remove(); this._err = null; }
-      if (!msg) return;
+      // --- shot telemetry: live + best velocity / angle ---
+      const bl = this._ball;
+      ctx.font = "600 10px " + FMONO; ctx.textAlign = 'right';
+      if (bl) {
+        const v = Math.hypot(bl.vx, bl.vy);
+        const ang = v > .15 ? Math.round(Math.atan2(-bl.vy, bl.vx) * 180 / Math.PI) : 0;
+        ctx.fillStyle = pal.muted; ctx.globalAlpha = .75;
+        ctx.fillText('VEL ' + v.toFixed(1) + ' · ANG ' + ang + '°', w - 12, 66);
+      }
+      const bs2 = this._bestShot;
+      ctx.fillStyle = pal.accent; ctx.globalAlpha = .85;
+      ctx.fillText(bs2 ? 'BEST ' + bs2.v.toFixed(1) + ' · ' + bs2.a + '°' : 'BEST —', w - 12, 80);
+      ctx.textAlign = 'left'; ctx.globalAlpha = 1;
+    };
+
+    const draw = () => {
+      if (w <= 0 || h <= 0) { resize(); this._raf = requestAnimationFrame(draw); return; }
+      const cs = getComputedStyle(document.documentElement);
+      pal.dot = cs.getPropertyValue('--dot').trim() || 'rgba(0,0,0,.15)';
+      pal.accent = cs.getPropertyValue('--accent').trim() || '#2C3BEA';
+      pal.ink = cs.getPropertyValue('--ink').trim() || '#1A1915';
+      pal.bg2 = cs.getPropertyValue('--bg2').trim() || '#fff';
+      pal.line = cs.getPropertyValue('--line').trim() || '#ddd';
+      pal.muted = cs.getPropertyValue('--muted').trim() || '#888';
+      ctx.clearRect(0, 0, w, h);
+
+      const look = this._look || 'blueprint';
+      if (look === 'vision') drawVision();
+      else if (look === 'robotics') drawRobotics();
+      else if (look === 'flora') drawFlora();
+      else if (look === 'graphics') drawGraphics();
+      else { drawGrid(); const md = this._mode || 'play'; if (md === 'play') drawPlay(); else if (md === 'blueprint') { drawBlueprint(); drawPlay(); drawButterfly(); } }
+
+      mouse.vx *= 0.6; mouse.vy *= 0.6;
+      this._raf = requestAnimationFrame(draw);
+    };
+    // always cancel any pending frame before (re)starting so mode switches
+    // can never stack multiple concurrent draw loops (which double-runs physics)
+    this._draw = () => { if (this._raf) cancelAnimationFrame(this._raf); draw(); };
+    this._draw();
+  }
+
+  setMode = (m) => {
+    if (m === 'blueprint' && this._mode !== 'blueprint') this._bloomReset = true;
+    this._mode = m;
+    this._setCorner(false);
+    this.setState({ mode: m });
+    this._paintPills();
+    if (this._draw) this._draw();
+  };
+
+  _scoreGoal() {
+    const bl = this._ball;
+    if (bl) {
+      const v = Math.hypot(bl.vx, bl.vy), a = Math.round(Math.atan2(-bl.vy, bl.vx) * 180 / Math.PI);
+      this._lastShot = { v, a };
+      if (!this._bestShot || v > this._bestShot.v) this._bestShot = { v, a };
+    }
+    this._score = (this._score || 0) + 1;
+    this._goalFlash = performance.now();
+    this._cornerT = 0;
+    if (this._cornerReady) this._setCorner(false);
+    const b = this._ball, s = this._spawn, cv = this._canvas;
+    if (b) {
+      if (s) { b.x = s.x; b.y = s.y; }
+      else if (cv) { b.x = cv.clientWidth * 0.3; b.y = cv.clientHeight * 0.5; }
+      b.vx = 0; b.vy = 0; b.shot = 0;
+    }
+  }
+
+  // launch a wedged ball out of a corner with a banana curve toward the goal mouth
+  _cornerKick(w, h) {
+    const b = this._ball; if (!b) return;
+    const r = b.r || 22, tx = w + 8, ty = h / 2;
+    b.x = Math.min(Math.max(b.x, r + 40), w - r - 40);
+    b.y = Math.min(Math.max(b.y, r + 40), h - r - 40);
+    // launch angled off-target; the homing in updateBall curls it into the mouth
+    const ang = Math.atan2(ty - b.y, tx - b.x) + (b.y > ty ? -1 : 1) * 0.7;
+    b.vx = Math.cos(ang) * 6; b.vy = Math.sin(ang) * 6; b.shot = 300;
+  }
+
+  _setCorner(on) {
+    this._cornerReady = on;
+    if (!this._cornerBtn) this._cornerBtn = document.getElementById('corner-kick-btn');
+    if (this._cornerBtn) this._cornerBtn.style.display = on ? 'inline-flex' : 'none';
+  }
+
+  takeCorner = () => {
+    const cv = this._canvas; if (!cv) return;
+    this._cornerKick(cv.clientWidth, cv.clientHeight);
+    this._cornerT = 0; this._setCorner(false);
+  };
+
+  onFooterMove = (e) => this._spawnRipple(e, false);
+  onFooterDown = (e) => this._spawnRipple(e, true);
+  _spawnRipple(e, big) {
+    const layer = this._rippleLayer; if (!layer) return;
+    const now = performance.now();
+    if (!big) { if (now - (this._lastRip || 0) < 90) return; this._lastRip = now; }
+    const r = layer.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    if (x < 0 || y < 0 || x > r.width || y > r.height) return;
+    const mkRing = (size, op, dur, delay, bw) => {
       const d = document.createElement('div');
-      d.className = 'err'; d.textContent = msg;
-      this.shadowRoot.appendChild(d);
-      this._err = d;
-      setTimeout(() => { if (this._err === d) { d.remove(); this._err = null; } }, 3000);
+      d.style.cssText = 'position:absolute; left:' + x + 'px; top:' + y + 'px; width:' + size + 'px; height:' + size + 'px; margin:' + (-size / 2) + 'px 0 0 ' + (-size / 2) + 'px; border:' + bw + 'px solid var(--accent); border-radius:50%; pointer-events:none; opacity:' + op + '; transform:scale(0); animation:rippleExpand ' + dur + 'ms cubic-bezier(.2,.7,.2,1) ' + delay + 'ms forwards;';
+      layer.appendChild(d);
+      setTimeout(() => d.remove(), dur + delay + 80);
+    };
+    if (big) {
+      mkRing(360, 0.85, 950, 0, 2.5);
+      mkRing(220, 0.6, 860, 120, 1.5);
+      mkRing(96, 0.5, 700, 40, 1.5);
+    } else {
+      mkRing(168, 0.55, 760, 0, 1.5);
     }
+  }
 
-    // Reframing (pan/resize) is only meaningful for fit=cover — contain/fill
-    // keep the old object-fit path and double-click is a no-op.
-    _reframes() {
-      return this.hasAttribute('data-filled') &&
-        (this.getAttribute('fit') || 'cover') === 'cover';
-    }
+  setLook = (k) => {
+    this._look = k;
+    delete document.documentElement.dataset.look;
+    try { localStorage.setItem('sane-look', k); } catch (e) {}
+    this._setCorner(false);
+    this._paintLooks();
+    if (this._draw) this._draw();
+  };
 
-    // Cover-baseline geometry, shared by clamp/apply/resize. Null until the
-    // img has loaded (naturalWidth is 0 before that) or when the slot has no
-    // layout box — ResizeObserver fires with a 0×0 rect under display:none,
-    // and clamping against a degenerate 1×1 frame would silently pull the
-    // stored pan toward zero.
-    _geom() {
-      const iw = this._img.naturalWidth, ih = this._img.naturalHeight;
-      const fw = this.clientWidth, fh = this.clientHeight;
-      if (!iw || !ih || !fw || !fh) return null;
-      return { iw, ih, fw, fh, base: Math.max(fw / iw, fh / ih) };
-    }
+  _paintLooks() {
+    const cur = this._look || 'blueprint';
+    const wrap = document.getElementById('look-switch');
+    if (wrap) wrap.querySelectorAll('[data-look-btn]').forEach((b) => {
+      const on = b.getAttribute('data-look-btn') === cur;
+      b.style.color = on ? 'var(--accent)' : 'var(--muted)';
+      b.style.borderColor = on ? 'var(--accent)' : 'var(--line)';
+      b.style.background = on ? 'var(--soft)' : 'transparent';
+    });
+    const bg = document.getElementById('bg-switch');
+    if (bg) bg.style.display = cur === 'blueprint' ? 'flex' : 'none';
+  }
 
-    _clampView() {
-      // Pan range on each axis is half the overflow past the frame edge.
-      const g = this._geom();
-      if (!g) return;
-      const mx = Math.max(0, (g.iw * g.base * this._view.s / g.fw - 1) * 50);
-      const my = Math.max(0, (g.ih * g.base * this._view.s / g.fh - 1) * 50);
-      this._view.x = Math.max(-mx, Math.min(mx, this._view.x));
-      this._view.y = Math.max(-my, Math.min(my, this._view.y));
-    }
+  _paintPills() {
+    const wrap = document.getElementById('bg-switch');
+    if (!wrap) return;
+    wrap.querySelectorAll('[data-mode]').forEach((b) => {
+      const on = b.getAttribute('data-mode') === this._mode;
+      b.style.color = on ? 'var(--accent)' : 'var(--muted)';
+      b.style.borderColor = on ? 'var(--accent)' : 'var(--line)';
+      b.style.background = on ? 'var(--soft)' : 'transparent';
+    });
+  }
 
-    _applyView() {
-      const g = this._geom();
-      const fit = this.getAttribute('fit') || 'cover';
-      if (fit !== 'cover' || !g) {
-        // Non-cover, or dimensions not known yet (before img load).
-        this._img.style.width = '100%';
-        this._img.style.height = '100%';
-        this._img.style.left = '50%';
-        this._img.style.top = '50%';
-        this._img.style.objectFit = fit;
-        this._img.style.objectPosition = this.getAttribute('position') || '50% 50%';
-        return;
+  onToggleTheme = () => {
+    this.setState((s) => {
+      const dark = !s.dark;
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      try { localStorage.setItem('sane-theme', dark ? 'dark' : 'light'); } catch (e) {}
+      return { dark };
+    });
+  };
+
+  openProject = (p) => { this.setState({ selected: p }); document.body.style.overflow = 'hidden'; };
+  onCloseProject = () => { this.setState({ selected: null }); document.body.style.overflow = ''; };
+  openCourse = (c) => { this.setState({ course: c }); document.body.style.overflow = 'hidden'; };
+  onCloseCourse = () => { this.setState({ course: null }); document.body.style.overflow = ''; };
+  stop = (e) => { e.stopPropagation(); };
+
+  _spineCols = ['#2C3BEA', '#B8462A', '#2E7D57', '#C6982F', '#8E3A6B', '#3A5A9E', '#7A5230', '#455066'];
+  _mkBook = (c, i) => {
+    const h = 214 + ((i * 5) % 4) * 13;
+    const w = c.w || (50 + ((i * 2) % 3) * 7);
+    const book = { ...c, h, w, color: this._spineCols[i % this._spineCols.length],
+      over: (e) => { e.currentTarget.style.transform = 'translateY(-16px)'; e.currentTarget.style.zIndex = '4'; },
+      out: (e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.zIndex = ''; },
+    };
+    book.open = (e) => this._pullBook(e, book);
+    return book;
+  };
+
+  // pull the selected spine up and out of the shelf, then open the reader
+  _pullBook = (e, book) => {
+    const el = e && e.currentTarget;
+    if (!el) { this.openCourse(book); return; }
+    el.style.transformOrigin = 'bottom center';
+    el.style.transition = 'transform .42s cubic-bezier(.34,1.14,.5,1), box-shadow .42s ease';
+    el.style.transform = 'translateY(-44px) rotate(-3deg) scale(1.1)';
+    el.style.boxShadow = '0 32px 42px -14px rgba(0,0,0,.55), inset -8px 0 13px rgba(0,0,0,.24), inset 5px 0 5px rgba(255,255,255,.16)';
+    el.style.zIndex = '8';
+    setTimeout(() => this.openCourse(book), 430);
+    setTimeout(() => { el.style.transition = 'transform .26s cubic-bezier(.2,.7,.2,1), box-shadow .26s ease'; el.style.transform = ''; el.style.boxShadow = ''; el.style.zIndex = ''; el.style.transformOrigin = ''; }, 900);
+  };
+
+  hoverLink = (e) => { e.currentTarget.style.color = 'var(--ink)'; };
+  unhoverLink = (e) => { e.currentTarget.style.color = 'var(--muted)'; };
+  btnOver = (e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 10px 28px var(--soft)'; };
+  btnOut = (e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; };
+  ghostOver = (e) => { e.currentTarget.style.borderColor = 'var(--accent)'; };
+  ghostOut = (e) => { e.currentTarget.style.borderColor = 'var(--line)'; };
+  cardOver = (e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.transform = 'translateY(-3px)'; };
+  cardOut = (e) => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.transform = 'none'; };
+
+  _bgs = [
+    'linear-gradient(135deg,#2C3BEA,#6E83FF)',
+    'linear-gradient(135deg,#1A1915,#3a3a44)',
+    'linear-gradient(135deg,#E85D2A,#f0a35c)',
+    'linear-gradient(135deg,#16876b,#4fd1a5)',
+    'linear-gradient(135deg,#7b3fe4,#b88cff)',
+    'linear-gradient(135deg,#c4304f,#ff7a90)'
+  ];
+  _tags = ['Web App','Computer Vision','Mixed Reality','CLI Tool','ML / Data','Robotics','Systems','Game','Mobile','API'];
+  _techPool = [['React','TypeScript','Node'],['Python','PyTorch','OpenCV'],['Unity','C#','ARKit'],['Go','Postgres','Docker'],['Three.js','WebGL','GLSL'],['Swift','CoreML','Metal'],['Rust','WASM'],['C++','ROS','Eigen']];
+
+  _projectImgs = { Personal: { 4: 'uploads/anchor-app.png' } };
+
+  _makeProjects(section, prefix, titles, tags, techs) {    return Array.from({ length: (titles ? titles.length : 12) }, (_, i) => {
+      const num = String(i + 1).padStart(2, '0');
+      const p = {
+        section,
+        isProject: true,
+        num,
+        title: (titles && titles[i]) || ('Project ' + num),
+        tag: (tags && tags[i]) || this._tags[i % this._tags.length],
+        bg: this._bgs[i % this._bgs.length],
+        tech: (techs && techs[i]) || this._techPool[i % this._techPool.length],
+        detail: 'Placeholder description.',
+        shotId: prefix + '-shot-' + num,
+        img: (this._projectImgs[section] && this._projectImgs[section][i]) || undefined,
+        over: this.cardOver,
+        out: this.cardOut,
+      };
+      p.showShot = !p.img;
+      p.open = () => this.openProject(p);
+      return p;
+    });
+  }
+
+  // generic decorative section canvas: sizes itself, tracks cursor (with movement decay), runs a draw fn
+  _sectionCanvas(cv, drawFn) {
+    if (!cv || cv._wired) return; cv._wired = true;
+    const ctx = cv.getContext('2d'); const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let w = 0, h = 0; const m = { x: -9999, y: -9999, tx: -9999, ty: -9999, mv: 0, on: false };
+    const resize = () => { const r = cv.getBoundingClientRect(); w = r.width; h = r.height; cv.width = Math.max(1, w * dpr); cv.height = Math.max(1, h * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); };
+    resize(); const ro = ('ResizeObserver' in window) ? new ResizeObserver(resize) : null; if (ro) ro.observe(cv);
+    const onMove = (e) => { const r = cv.getBoundingClientRect(); const nx = e.clientX - r.left, ny = e.clientY - r.top; m.tx = nx; m.ty = ny; m.mv = Math.min(1, m.mv + 0.5); m.on = nx >= -60 && nx <= w + 60 && ny >= -60 && ny <= h + 60; };
+    window.addEventListener('pointermove', onMove);
+    const onDown = (e) => { const r = cv.getBoundingClientRect(); const nx = e.clientX - r.left, ny = e.clientY - r.top; if (nx >= 0 && nx <= w && ny >= 0 && ny <= h) { m.click = { x: nx, y: ny }; m.down = true; } };
+    const onUp = () => { m.down = false; };
+    window.addEventListener('pointerdown', onDown); window.addEventListener('pointerup', onUp);
+    this._secCleanup.push(() => { if (ro) ro.disconnect(); window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerdown', onDown); window.removeEventListener('pointerup', onUp); });
+    let t = 0;
+    const loop = () => {
+      if (w > 0 && h > 0) {
+        if (m.x < -9000) { m.x = m.tx; m.y = m.ty; }
+        m.x += (m.tx - m.x) * 0.1; m.y += (m.ty - m.y) * 0.1; m.mv *= 0.93;
+        const cs = getComputedStyle(document.documentElement);
+        const pal = { accent: cs.getPropertyValue('--accent').trim() || '#2C3BEA', ink: cs.getPropertyValue('--ink').trim() || '#1A1915', dot: cs.getPropertyValue('--dot').trim() || 'rgba(0,0,0,.15)', muted: cs.getPropertyValue('--muted').trim() || '#888', line: cs.getPropertyValue('--line').trim() || '#ddd', bg2: cs.getPropertyValue('--bg2').trim() || '#fff' };
+        ctx.clearRect(0, 0, w, h); try { drawFn(ctx, w, h, m, pal, t); } catch (e) {}
+        t++;
       }
-      // Cover baseline: img fills the frame on its tighter axis at s=1, so
-      // pan works immediately on the overflowing axis without zooming first.
-      // Width/height and left/top are all frame-% — depends only on the
-      // frame aspect ratio, so a responsive resize keeps the same crop. The
-      // spill layer mirrors the same box so its corners = image corners.
-      const k = g.base * this._view.s;
-      const w = (g.iw * k / g.fw * 100) + '%';
-      const h = (g.ih * k / g.fh * 100) + '%';
-      const l = (50 + this._view.x) + '%';
-      const t = (50 + this._view.y) + '%';
-      this._img.style.width = w; this._img.style.height = h;
-      this._img.style.left = l; this._img.style.top = t;
-      this._img.style.objectFit = '';
-      this._spill.style.width = w; this._spill.style.height = h;
-      this._spill.style.left = l; this._spill.style.top = t;
+      this._secRAF.push(requestAnimationFrame(loop));
+    };
+    loop();
+  }
+
+  // ABOUT — computer-vision detection framing over the portrait
+  _scAbout = (ctx, w, h, m, pal, t) => {
+    const cvEl = ctx.canvas;
+    if (!cvEl._vf || cvEl._vw !== w || cvEl._vh !== h) { cvEl._vf = Array.from({ length: 40 }, () => ({ x: Math.random() * w, y: Math.random() * h, p: Math.random() * 6.28 })); cvEl._vw = w; cvEl._vh = h; }
+    // feature points that connect to the cursor when near (like the hero Vision scene)
+    for (const f of cvEl._vf) {
+      const fx = f.x + Math.cos(t * 0.015 + f.p) * 1.2, fy = f.y, d = m.on ? Math.hypot(fx - m.x, fy - m.y) : 9999;
+      ctx.strokeStyle = pal.ink; ctx.globalAlpha = d < 160 ? 0.5 : 0.13; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(fx - 2.5, fy); ctx.lineTo(fx + 2.5, fy); ctx.moveTo(fx, fy - 2.5); ctx.lineTo(fx, fy + 2.5); ctx.stroke();
+      if (d < 150) { ctx.strokeStyle = pal.accent; ctx.globalAlpha = (1 - d / 150) * 0.55; ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(m.x, m.y); ctx.stroke(); }
     }
-
-    _commitView() {
-      const v = { s: this._view.s, x: this._view.x, y: this._view.y };
-      if (this._userUrl) v.u = this._userUrl;
-      // Framing-only (no u) persists too so an author-src slot remembers its
-      // crop; clearing the sidecar still falls through to src=.
-      if (this.id) setSlot(this.id, v);
-      else { this._local = v; }
-    }
-
-    _render() {
-      // Shape / mask. Presets use border-radius so the dashed ring can
-      // follow the rounded outline; clip-path is only applied for an
-      // explicit `mask` (the ring is hidden there since a rectangle
-      // dashed border chopped by an arbitrary polygon looks broken).
-      const mask = this.getAttribute('mask');
-      const shape = (this.getAttribute('shape') || 'rounded').toLowerCase();
-      let radius = '';
-      if (shape === 'circle') radius = '50%';
-      else if (shape === 'pill') radius = '9999px';
-      else if (shape === 'rounded') {
-        const n = parseFloat(this.getAttribute('radius'));
-        radius = (Number.isFinite(n) ? n : 12) + 'px';
-      }
-      this._frame.style.borderRadius = mask ? '' : radius;
-      this._frame.style.clipPath = mask || '';
-      this._ring.style.borderRadius = mask ? '' : radius;
-      this._ring.style.display = mask ? 'none' : '';
-
-      // Controls and reframe entry gate on this so share links stay read-only.
-      const editable = !!(window.omelette && window.omelette.writeFile);
-      this.toggleAttribute('data-editable', editable);
-      this._sub.style.display = editable ? '' : 'none';
-
-      // Content. The sidecar is also writable by the agent's write_file
-      // tool, so its value isn't guaranteed canvas-originated — only accept
-      // data:image/ URLs from it. The `src` attribute is author-controlled
-      // (Claude wrote it into the HTML) so it passes through unchanged.
-      let stored = this.id ? getSlot(this.id) : this._local;
-      if (stored && stored.u && !/^data:image\//i.test(stored.u)) stored = null;
-      const srcAttr = this.getAttribute('src') || '';
-      this._userUrl = (stored && stored.u) || null;
-      const url = this._userUrl || srcAttr;
-      // Don't clobber an in-flight reframe with a store-triggered re-render.
-      if (!this.hasAttribute('data-reframe')) {
-        this._view = {
-          s: stored && Number.isFinite(stored.s) ? clampS(stored.s) : 1,
-          x: stored && Number.isFinite(stored.x) ? stored.x : 0,
-          y: stored && Number.isFinite(stored.y) ? stored.y : 0,
-        };
-      }
-      this._cap.textContent = this.getAttribute('placeholder') || 'Drop an image';
-      // Toggle via style.display — the [hidden] attribute alone loses to
-      // the display:flex / display:block rules in the stylesheet above.
-      if (url) {
-        if (this._img.getAttribute('src') !== url) {
-          this._img.src = url;
-          this._ghost.src = url;
+    ctx.globalAlpha = 1;
+    // locate the portrait relative to the canvas
+    let pb = null; const pel = document.getElementById('sb-portrait');
+    if (pel) { const cr = cvEl.getBoundingClientRect(), r = pel.getBoundingClientRect(); if (r.width) pb = { x: r.left - cr.left, y: r.top - cr.top, w: r.width, h: r.height }; }
+    const onFace = pb && m.on && m.x > pb.x - 12 && m.x < pb.x + pb.w + 12 && m.y > pb.y - 12 && m.y < pb.y + pb.h + 12;
+    const onHi = pb && m.on && m.x > pb.x && m.x < pb.x + pb.w * 0.22 && m.y > pb.y + pb.h / 3 && m.y < pb.y + pb.h * 2 / 3;
+    let onWall = false;
+    if (pb && m.on && !onHi && (m.y - pb.y) < pb.h * 0.62) {
+      if (!this._portraitPix) { const pim = document.getElementById('sb-portrait'); if (pim && pim.complete && pim.naturalWidth) { try { const oc = document.createElement('canvas'); oc.width = pim.naturalWidth; oc.height = pim.naturalHeight; const octx = oc.getContext('2d'); octx.drawImage(pim, 0, 0); this._portraitPix = octx.getImageData(0, 0, oc.width, oc.height); } catch (e) { this._portraitPix = 'err'; } } }
+      const P = this._portraitPix;
+      if (P && P !== 'err') {
+        const iw = P.width, ih = P.height, sc = Math.max(pb.w / iw, pb.h / ih);
+        const ox = (pb.w - iw * sc) * 0.5, oy = (pb.h - ih * sc) * 0.30;
+        const ix = Math.round(((m.x - pb.x) - ox) / sc), iy = Math.round(((m.y - pb.y) - oy) / sc);
+        if (ix >= 0 && ix < iw && iy >= 0 && iy < ih) {
+          const i4 = (iy * iw + ix) * 4, r = P.data[i4], g = P.data[i4 + 1], b = P.data[i4 + 2];
+          const hi = Math.max(r, g, b), lo = Math.min(r, g, b), bright = (r + g + b) / 3, sat = hi ? (hi - lo) / hi : 0;
+          onWall = bright > 165 && sat < 0.22;
         }
-        this._img.style.display = 'block';
-        this._empty.style.display = 'none';
-        this.setAttribute('data-filled', '');
-        this._clampView();
-        this._applyView();
-      } else {
-        this._img.style.display = 'none';
-        this._img.removeAttribute('src');
-        this._ghost.removeAttribute('src');
-        this._empty.style.display = 'flex';
-        this.removeAttribute('data-filled');
       }
     }
-  }
+    if (pb) {
+      const L = pb.x, T = pb.y, bw = pb.w, bh = pb.h, c = 18;
+      ctx.strokeStyle = onFace ? pal.accent : pal.muted; ctx.globalAlpha = onFace ? 0.95 : 0.4; ctx.lineWidth = 2;
+      const brk = (x, y, sx, sy) => { ctx.beginPath(); ctx.moveTo(x + sx * c, y); ctx.lineTo(x, y); ctx.lineTo(x, y + sy * c); ctx.stroke(); };
+      brk(L, T, 1, 1); brk(L + bw, T, -1, 1); brk(L, T + bh, 1, -1); brk(L + bw, T + bh, -1, -1);
+      if (onFace) {
+        const gdx = bw * 0.05, gdy = -bh * 0.13;
+        ctx.strokeStyle = pal.accent; ctx.globalAlpha = 0.28; ctx.lineWidth = 0.7;
+        for (let i = 0; i <= 5; i++) { const gx = L + gdx + bw * 0.2 + bw * 0.6 * (i / 5); ctx.beginPath(); ctx.moveTo(gx, T + gdy + bh * 0.2); ctx.lineTo(gx, T + gdy + bh * 0.82); ctx.stroke(); }
+        for (let j = 0; j <= 6; j++) { const gy = T + gdy + bh * 0.2 + bh * 0.62 * (j / 6); ctx.beginPath(); ctx.moveTo(L + gdx + bw * 0.2, gy); ctx.lineTo(L + gdx + bw * 0.8, gy); ctx.stroke(); }
+        ctx.globalAlpha = 1;
+        ctx.globalAlpha = 1; ctx.fillStyle = pal.accent; ctx.fillRect(L, T - 16, onHi ? 138 : 96, 14); ctx.fillStyle = pal.bg2; ctx.font = "600 9px 'JetBrains Mono',monospace"; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.fillText(onHi ? 'GREETINGS DETECTED!' : (onWall ? 'WALL DETECTED' : 'FACE DETECTED'), L + 5, T - 5);
+      }
+    }
+    ctx.globalAlpha = 1;
+    // square tracking reticle on the cursor — label shows coordinates (never the word "scan")
+    if (m.on) {
+      const rx = m.x, ry = m.y, s = 15, c2 = 6;
+      ctx.strokeStyle = pal.accent; ctx.globalAlpha = 0.9; ctx.lineWidth = 1.6;
+      const sq = (cx2, cy2, sx, sy) => { ctx.beginPath(); ctx.moveTo(cx2 + sx * c2, cy2); ctx.lineTo(cx2, cy2); ctx.lineTo(cx2, cy2 + sy * c2); ctx.stroke(); };
+      sq(rx - s, ry - s, 1, 1); sq(rx + s, ry - s, -1, 1); sq(rx - s, ry + s, 1, -1); sq(rx + s, ry + s, -1, -1);
+      ctx.globalAlpha = 0.45; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(rx - 5, ry); ctx.lineTo(rx + 5, ry); ctx.moveTo(rx, ry - 5); ctx.lineTo(rx, ry + 5); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.fillStyle = pal.accent; ctx.font = "600 8px 'JetBrains Mono',monospace"; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.fillText(onFace ? 'LOCK' : (Math.round(rx) + ',' + Math.round(ry)), rx + s + 4, ry + 3);
+    }
+    ctx.fillStyle = pal.muted; ctx.globalAlpha = 0.65; ctx.font = "9px 'JetBrains Mono',monospace"; ctx.textAlign = 'left'; ctx.fillText('CV · RGB · f' + (1000 + t % 999), 4, 13);
+    ctx.globalAlpha = 1;
+  };
 
-  if (!customElements.get('image-slot')) {
-    customElements.define('image-slot', ImageSlot);
+  _pickArmTarget = () => { const idx = [0, 1, 2, 3, 4]; for (let i = idx.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const tmp = idx[i]; idx[i] = idx[j]; idx[j] = tmp; } return idx.slice(0, 3); };
+  restartArm = () => { this._armObjs = null; this._heldIdx = null; if (this._armGame) { this._armGame.target = this._pickArmTarget(); this._armGame.startT = null; this._armGame.elapsed = 0; this._armGame.done = false; } };
+
+  // EXPERIENCE — IK robotic arm ending in an articulated hand, mounted on the right
+  _scArm = (ctx, w, h, m, pal, t) => {
+    const bx = w - 12, by = h * 0.5, L1 = Math.min(w * 0.5, h * 0.42), L2 = Math.min(w * 0.42, h * 0.34);
+    let tx, ty;
+    if (m.on) { tx = m.x; ty = m.y; }
+    else { const hp = m.tx > -9000; const ddx = hp ? (m.tx - bx) : -1, ddy = hp ? (m.ty - by) : 0; const dl = Math.hypot(ddx, ddy) || 1, rr = (L1 + L2) * 0.5; tx = bx + ddx / dl * rr; ty = by + ddy / dl * rr; }
+    let dx = tx - bx, dy = ty - by, dist = Math.hypot(dx, dy);
+    const maxR = (L1 + L2) * 0.98, minR = Math.abs(L1 - L2) + 12;
+    if (dist > maxR) { tx = bx + dx / dist * maxR; ty = by + dy / dist * maxR; } else if (dist < minR) { const a = Math.atan2(dy, dx); tx = bx + Math.cos(a) * minR; ty = by + Math.sin(a) * minR; }
+    dx = tx - bx; dy = ty - by;
+    const elbow = ty < by ? 1 : -1;
+    const a2 = elbow * Math.acos(Math.min(1, Math.max(-1, (dx * dx + dy * dy - L1 * L1 - L2 * L2) / (2 * L1 * L2))));
+    const a1 = Math.atan2(dy, dx) - Math.atan2(L2 * Math.sin(a2), L1 + L2 * Math.cos(a2));
+    if (!this._eArm) this._eArm = { a: a1, b: a2 };
+    const sa = (cur, tg) => cur + Math.atan2(Math.sin(tg - cur), Math.cos(tg - cur)) * 0.16;
+    this._eArm.a = sa(this._eArm.a, a1); this._eArm.b = sa(this._eArm.b, a2);
+    const A = this._eArm.a, B = this._eArm.b;
+    const ex = bx + Math.cos(A) * L1, ey = by + Math.sin(A) * L1, hx = ex + Math.cos(A + B) * L2, hy = ey + Math.sin(A + B) * L2;
+    // colored blocks — press & hold to grab with the hand, release to drop; out-of-reach resets home
+    const reach = L1 + L2, groundY = Math.min(h - 6, by + reach * 0.62), hd0 = A + B, htx = hx + Math.cos(hd0) * 16, hty = hy + Math.sin(hd0) * 16;
+    if (!this._armObjs || this._armObjs._w !== w || this._armObjs._h !== h || this._armObjs.length !== 5) {
+      this._armObjs = [[44, 15, '#2C3BEA'], [90, 14, '#E8663A'], [136, 13, '#25A567'], [182, 18, '#C24DD0'], [224, 11, '#E8B93A']].map(([d, s, c]) => { const hx0 = Math.max(w - d, bx - reach * 0.72); return { x: hx0, y: groundY - s, vx: 0, vy: 0, s: s, c: c, home: hx0 }; });
+      this._armObjs._w = w; this._armObjs._h = h; this._heldIdx = null;
+    }
+    const objs = this._armObjs;
+    if (!this._armGame) { let best = null; try { const b = parseFloat(localStorage.getItem('sane-arm-best')); if (b > 0) best = b; } catch (e) {} this._armGame = { target: this._pickArmTarget(), startT: null, elapsed: 0, done: false, best }; }
+    const G = this._armGame;
+    // reset the timer if the cursor has left the Experience section for more than 3s
+    { const secEl = ctx.canvas.closest('section'); const now = performance.now(); let inSec = false;
+      if (secEl && m.tx > -9000) { const cr = ctx.canvas.getBoundingClientRect(), sr = secEl.getBoundingClientRect(); const gx = m.tx + cr.left, gy = m.ty + cr.top; inSec = gx >= sr.left && gx <= sr.right && gy >= sr.top && gy <= sr.bottom; }
+      if (inSec) { this._armAwaySince = null; }
+      else if (this._armAwaySince == null) { this._armAwaySince = now; }
+      else if (now - this._armAwaySince > 3000 && (G.startT != null || G.done || G.elapsed > 0)) { G.startT = null; G.elapsed = 0; G.done = false; G.target = this._pickArmTarget(); this._heldIdx = null; } }
+    const padX = Math.round(bx - reach * 0.5), padHalf = 30;
+    if (m.down && this._heldIdx == null) { for (let k = 0; k < objs.length; k++) { if (Math.hypot(objs[k].x - m.x, objs[k].y - m.y) < objs[k].s + 22 || Math.hypot(objs[k].x - htx, objs[k].y - hty) < objs[k].s + 16) { this._heldIdx = k; if (G.startT == null && !G.done) G.startT = performance.now(); break; } } }
+    if (!m.down && this._heldIdx != null) this._heldIdx = null;
+    for (let k = 0; k < objs.length; k++) {
+      const o = objs[k];
+      if (k === this._heldIdx) { o.x += (htx - o.x) * 0.55; o.y += (hty - o.y) * 0.55; o.vx = 0; o.vy = 0; continue; }
+      o.vy += 0.4; o.vx *= 0.98; o.x += o.vx; o.y += o.vy;
+      if (o.x < o.s) { o.x = o.s; o.vx *= -0.4; } if (o.x > w - o.s) { o.x = w - o.s; o.vx *= -0.4; }
+      // rest on the shelf OR on top of another block (stacking); settle without bouncing
+      let sup = groundY; for (let j = 0; j < objs.length; j++) { if (j === k || j === this._heldIdx) continue; const oj = objs[j]; if (Math.abs(o.x - oj.x) < o.s + oj.s - 2 && oj.y > o.y + 1) sup = Math.min(sup, oj.y - oj.s); }
+      if (o.y >= sup - o.s) { o.y = sup - o.s; o.vy = 0; o.vx *= 0.6; if (Math.abs(o.x - bx) <= reach * 0.82) o.vx *= 0.3; }
+      // only ease a block home if it has come to rest genuinely beyond the arm's horizontal reach
+      if (o.y >= sup - o.s - 0.6 && Math.abs(o.vy) < 0.5 && Math.abs(o.x - bx) > reach * 0.82) { o.x += (o.home - o.x) * 0.06; }
+    }
+    // ==== mini-game: match the target stack as fast as you can ====
+    ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = pal.muted; ctx.globalAlpha = 0.5; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(padX - padHalf, groundY + 1); ctx.lineTo(padX + padHalf, groundY + 1); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+    let gy = groundY;
+    for (const bi of G.target) { const s = objs[bi].s; ctx.save(); ctx.translate(padX, gy - s); ctx.setLineDash([4, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = objs[bi].c; ctx.globalAlpha = G.done ? 0.16 : 0.8; ctx.beginPath(); ctx.roundRect(-s, -s, s * 2, s * 2, 3); ctx.stroke(); ctx.globalAlpha = G.done ? 0.04 : 0.11; ctx.fillStyle = objs[bi].c; ctx.fill(); ctx.setLineDash([]); ctx.restore(); gy -= s * 2 + 0.5; }
+    ctx.globalAlpha = 0.78; ctx.fillStyle = G.done ? pal.accent : pal.muted; ctx.font = "600 8.5px 'JetBrains Mono',monospace"; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText(G.done ? 'SOLVED' : 'TARGET', padX, gy - 3); ctx.textAlign = 'left'; ctx.globalAlpha = 1;
+    if (!G.done) {
+      const tgt = G.target.map((bi) => objs[bi].c), tset = new Set(tgt);
+      const stack = objs.filter((o, ki) => ki !== this._heldIdx && tset.has(o.c) && Math.abs(o.x - padX) < padHalf && Math.abs(o.vy) < 0.6).sort((a, b) => b.y - a.y);
+      const seq = stack.map((o) => o.c);
+      if (seq.length === tgt.length && seq.every((c, i) => c === tgt[i])) { G.done = true; if (G.startT != null) G.elapsed = (performance.now() - G.startT) / 1000; if (G.best == null || G.elapsed < G.best) { G.best = G.elapsed; try { localStorage.setItem('sane-arm-best', G.best.toFixed(2)); } catch (e) {} } }
+    }
+    if (G.startT != null && !G.done) G.elapsed = (performance.now() - G.startT) / 1000;
+    if (this._armTimeEl) { this._armTimeEl.textContent = (G.startT == null ? 0 : G.elapsed).toFixed(1) + 's'; this._armTimeEl.style.color = G.done ? 'var(--accent)' : 'var(--ink)'; }
+    if (this._armBestEl) this._armBestEl.textContent = G.best == null ? '—' : G.best.toFixed(1) + 's';
+    for (let k = 0; k < objs.length; k++) {
+      const o = objs[k];
+      ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(k === this._heldIdx ? 0 : o.vx * 0.04);
+      ctx.globalAlpha = 0.95; ctx.fillStyle = o.c; ctx.beginPath(); ctx.roundRect(-o.s, -o.s, o.s * 2, o.s * 2, 3); ctx.fill();
+      ctx.globalAlpha = 0.5; ctx.strokeStyle = 'rgba(255,255,255,.65)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-o.s + 3, -o.s + 3); ctx.lineTo(o.s - 3, -o.s + 3); ctx.stroke();
+      ctx.restore(); ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = pal.ink; ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.roundRect(bx - 6, by - 30, 20, 60, 5); ctx.fill();
+    const cap = (x0, y0, x1, y1, wd0, wd1, col) => { const aa = Math.atan2(y1 - y0, x1 - x0), px = Math.cos(aa + 1.5708), py = Math.sin(aa + 1.5708); ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x0 + px * wd0, y0 + py * wd0); ctx.lineTo(x1 + px * wd1, y1 + py * wd1); ctx.lineTo(x1 - px * wd1, y1 - py * wd1); ctx.lineTo(x0 - px * wd0, y0 - py * wd0); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.arc(x1, y1, wd1, 0, 6.28); ctx.fill(); };
+    ctx.globalAlpha = 0.92; cap(bx, by, ex, ey, 7, 6, pal.ink); cap(ex, ey, hx, hy, 6, 5, pal.accent);
+    ctx.fillStyle = pal.bg2; ctx.strokeStyle = pal.ink; ctx.lineWidth = 2; [[bx, by, 7], [ex, ey, 6.5]].forEach(([jx, jy, jr]) => { ctx.beginPath(); ctx.arc(jx, jy, jr, 0, 6.28); ctx.fill(); ctx.stroke(); });
+    const dir = A + B, near = Math.hypot(tx - hx, ty - hy), curl = Math.max(this._heldIdx != null ? 0.92 : 0, Math.min(1, 1 - near / 90));
+    ctx.save(); ctx.translate(hx, hy); ctx.rotate(dir);
+    ctx.fillStyle = pal.ink; ctx.globalAlpha = 0.95; ctx.beginPath(); ctx.roundRect(-6, -12, 9, 24, 3); ctx.fill(); ctx.beginPath(); ctx.roundRect(1, -12, 15, 24, 6); ctx.fill();
+    const fng = (oy, sc) => { let x = 15, y = oy, a = 0; const ln = [8 * sc, 6 * sc, 4.5 * sc], wd = [3, 2.6, 2.1]; for (let s = 0; s < 3; s++) { a += (s === 0 ? 0.04 : 0.12) + curl * (0.45 + s * 0.22); const nx = x + Math.cos(a) * ln[s], ny = y + Math.sin(a) * ln[s]; ctx.strokeStyle = pal.ink; ctx.lineCap = 'round'; ctx.lineWidth = wd[s]; ctx.globalAlpha = 0.95; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(nx, ny); ctx.stroke(); ctx.fillStyle = pal.bg2; ctx.strokeStyle = pal.ink; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, wd[s] * 0.62, 0, 6.28); ctx.fill(); ctx.stroke(); x = nx; y = ny; } ctx.fillStyle = pal.accent; ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.arc(x, y, 1.9, 0, 6.28); ctx.fill(); };
+    fng(-8, 1.04); fng(-2.8, 1.14); fng(2.8, 1.08); fng(8, 0.9);
+    (() => { let x = 2, y = 11, a = 0.85 - curl * 0.35; const ln = [7, 5], wd = [3, 2.4]; for (let s = 0; s < 2; s++) { a += 0.12 + curl * 0.5; const nx = x + Math.cos(a) * ln[s], ny = y + Math.sin(a) * ln[s]; ctx.strokeStyle = pal.ink; ctx.lineWidth = wd[s]; ctx.lineCap = 'round'; ctx.globalAlpha = 0.95; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(nx, ny); ctx.stroke(); x = nx; y = ny; } ctx.fillStyle = pal.accent; ctx.beginPath(); ctx.arc(x, y, 1.9, 0, 6.28); ctx.fill(); })();
+    ctx.restore(); ctx.globalAlpha = 1;
+  };
+
+  // PROJECTS — vines that hold a lean toward the cursor; extra sway only while the cursor moves
+  _scFlora = (ctx, w, h, m, pal, t) => {
+    const cvel = ctx.canvas;
+    const isLeft = cvel.getBoundingClientRect().left < (window.innerWidth || 1200) / 2;
+    const inward = isLeft ? 1 : -1;
+    const FC = [pal.accent, '#E8663A', '#C24DD0', '#E8B93A', '#25A567'];
+    if (!cvel._fn || cvel._fw !== w || cvel._fh !== h || cvel._fv !== 3) { cvel._fn = Array.from({ length: 5 }, (_, i) => ({ off: 2 + i * 13.75, ph: i * 1.7, curve: 0.6 + (i % 3) * 0.35, tall: 0.84 + (i % 2) * 0.14, seed: (i * 3) % FC.length })); cvel._fw = w; cvel._fh = h; cvel._fv = 3; }
+    const seg = Math.min(42, Math.max(16, Math.round(h / 80)));
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const leaf = (L, W) => { ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(L * 0.5, -W, L, 0); ctx.quadraticCurveTo(L * 0.5, W, 0, 0); ctx.fill(); const g = ctx.globalAlpha; ctx.globalAlpha = g * 0.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(L * 0.9, 0); ctx.stroke(); ctx.globalAlpha = g; };
+    const flower = (type, r, col) => { ctx.fillStyle = col; if (type === 0) { for (let q = 0; q < 6; q++) { ctx.rotate(1.0472); ctx.beginPath(); ctx.ellipse(0, -r, r * 0.55, r, 0, 0, 6.28); ctx.fill(); } } else if (type === 1) { for (let q = 0; q < 11; q++) { ctx.rotate(0.5712); ctx.beginPath(); ctx.ellipse(0, -r * 1.05, r * 0.26, r * 1.05, 0, 0, 6.28); ctx.fill(); } } else { for (let q = 0; q < 5; q++) { ctx.rotate(1.2566); ctx.beginPath(); ctx.ellipse(0, -r * 0.85, r * 0.72, r * 0.85, 0, 0, 6.28); ctx.fill(); } } ctx.globalAlpha = 0.95; ctx.fillStyle = pal.bg2; ctx.beginPath(); ctx.arc(0, 0, r * 0.42, 0, 6.28); ctx.fill(); ctx.fillStyle = '#E8B93A'; ctx.beginPath(); ctx.arc(0, 0, r * 0.24, 0, 6.28); ctx.fill(); };
+    for (const v of cvel._fn) {
+      const len = (h * v.tall) / seg, pts = [], baseX = (isLeft ? 22 : w - 22) + inward * v.off;
+      // no mouse-attach — only a little extra sway when the cursor is near THIS vine
+      const prox = m.on ? Math.max(0, 1 - Math.abs(m.x - baseX) / 85) : 0;
+      let x = baseX, y = h + 4, ang = -Math.PI / 2;
+      for (let s = 0; s <= seg; s++) {
+        pts.push({ x, y, t01: s / seg });
+        ang += v.curve * 0.0028 * inward + Math.sin(t * 0.02 + v.ph + s * 0.35) * (0.007 + prox * 0.03) * (s / seg);
+        ang = Math.max(-Math.PI / 2 - 0.25, Math.min(-Math.PI / 2 + 0.25, ang));
+        x += Math.cos(ang) * len; y += Math.sin(ang) * len;
+      }
+      ctx.strokeStyle = pal.ink; ctx.globalAlpha = 0.42;
+      for (let i = 1; i < pts.length; i++) { ctx.lineWidth = Math.max(0.9, 4.6 * (1 - pts[i].t01 * 0.9)); ctx.beginPath(); ctx.moveTo(pts[i - 1].x, pts[i - 1].y); ctx.lineTo(pts[i].x, pts[i].y); ctx.stroke(); }
+      for (let i = 2; i < pts.length - 1; i++) {
+        const p = pts[i], dir = Math.atan2(p.y - pts[i - 1].y, p.x - pts[i - 1].x), side = (i % 2 ? 1 : -1), grow = Math.sin((i / pts.length) * Math.PI), L = 7 + grow * 12, W = 2.6 + grow * 4.6;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(dir + side * 1.2); ctx.fillStyle = pal.accent; ctx.strokeStyle = pal.accent; ctx.globalAlpha = 0.4; ctx.lineWidth = 1; leaf(L, W); ctx.restore();
+      }
+      [0.4, 0.62, 0.82, 1.0].forEach((sp, si) => {
+        const p = pts[Math.min(pts.length - 1, Math.round(sp * (pts.length - 1)))];
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(t * 0.006 + v.ph + si * 1.3); ctx.globalAlpha = 0.66; flower((v.seed + si) % 3, si === 3 ? 6.8 : 4.8, FC[(v.seed + si) % FC.length]); ctx.restore();
+      });
+    }
+    ctx.globalAlpha = 1;
+  };
+
+  // PROJECTS floor — a band of grass you can ruffle through with the cursor
+  _scGrass = (ctx, w, h, m, pal, t) => {
+    const cv = ctx.canvas;
+    if (!cv._g || cv._gw !== w || cv._gv !== 2) {
+      cv._gv = 2; cv._g = [];
+      const greens = ['#3F7A34', '#4E8B3B', '#5FA24A', '#6FB257', '#356B2C', '#7DBB5F'];
+      for (let x = 1; x < w; x += 4 + Math.random() * 3.5) {
+        cv._g.push({ x, len: 20 + Math.random() * 32, wd: 2.2 + Math.random() * 2.4, ph: Math.random() * 6.28, bend: 0, c: greens[(Math.random() * greens.length) | 0], dir: Math.random() < 0.5 ? -1 : 1 });
+      }
+      cv._g.sort((a, b) => a.len - b.len); // short blades behind, tall in front
+      cv._gw = w;
+    }
+    const baseY = h + 2;
+    ctx.lineJoin = 'round';
+    for (const b of cv._g) {
+      // ruffle: blades bend away from the cursor when it's near, then spring back
+      let target = b.dir * 0.11; // gentle natural resting tilt
+      if (m.on) {
+        const midY = baseY - b.len * 0.6, dx = b.x - m.x, dy = midY - m.y, dist = Math.hypot(dx, dy);
+        if (dist < 80) { const f = 1 - dist / 80; target += Math.sign(dx || 1) * f * (1.1 + m.mv * 1.4); }
+      }
+      const idle = Math.sin(t * 0.02 + b.ph) * 0.07;
+      b.bend += (target - b.bend) * 0.16;
+      const lean = Math.max(-1.5, Math.min(1.5, b.bend + idle));
+      const tipx = b.x + Math.sin(lean) * b.len, tipy = baseY - Math.cos(lean) * b.len;
+      const cx = b.x + Math.sin(lean * 0.5) * b.len * 0.5, cy = baseY - Math.cos(lean * 0.5) * b.len * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(b.x - b.wd / 2, baseY);
+      ctx.quadraticCurveTo(cx - b.wd * 0.35, cy, tipx, tipy);
+      ctx.quadraticCurveTo(cx + b.wd * 0.35, cy, b.x + b.wd / 2, baseY);
+      ctx.closePath();
+      ctx.fillStyle = b.c; ctx.globalAlpha = 0.62; ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  };
+
+  // LEADERSHIP & AWARDS — confetti cannon; click to throw, confetti piles up on the ground
+  _scConfetti = (ctx, w, h, m, pal, t) => {
+    const cvel = ctx.canvas;
+    if (!cvel._cf) cvel._cf = [];
+    const binW = 13, nb = Math.ceil(w / binW);
+    if (!cvel._bins || cvel._binN !== nb) { cvel._bins = new Array(nb).fill(0); cvel._binN = nb; }
+    const cols = ['#2C3BEA', '#E8663A', '#25A567', '#E8B93A', '#C24DD0'];
+    // party popper (party.png) sits bottom-right, mouth pointing up-left
+    const iw = 58, ih = 58;
+    const imgX = w - iw - 14, imgY = h - ih - 14, dirA = -Math.PI * 0.72;
+    const mx = imgX + iw * 0.34, my = imgY + ih * 0.52;  // launch from the cone mouth
+    const cx = imgX + iw * 0.55, cy = imgY + ih * 0.55;  // click hit-test center
+    const burst = () => {
+      for (let i = 0; i < 48; i++) { const a = dirA + (Math.random() - 0.5) * 1.0, sp = 2.8 + Math.random() * 4.4; cvel._cf.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.26, s: 3 + Math.random() * 3, c: cols[(Math.random() * cols.length) | 0], set: false }); }
+      if (cvel._cf.length > 900) cvel._cf.splice(0, cvel._cf.length - 900);
+    };
+    if (this._autoPop) { this._autoPop = false; burst(); }
+    if (m.click) {
+      if (Math.hypot(m.click.x - cx, m.click.y - cy) < 58) burst();
+      m.click = null;
+    }
+    // rebuild pile heights from actually-settled confetti each frame (prevents phantom mid-air piles)
+    cvel._bins.fill(0);
+    for (const p of cvel._cf) { if (p.set) { const b = Math.max(0, Math.min(nb - 1, (p.x / binW) | 0)); cvel._bins[b]++; } }
+    const groundAt = (x) => { const b = Math.max(0, Math.min(nb - 1, (x / binW) | 0)); return h - 2 - Math.min(46, cvel._bins[b] * 0.55); };
+    for (const p of cvel._cf) {
+      if (p.set) {
+        // sift: sweep the cursor through the pile to scatter settled confetti
+        if (m.on && Math.hypot(p.x - m.x, p.y - m.y) < 24) { const dx = p.x - m.x, dy = p.y - m.y, d = Math.hypot(dx, dy) || 1; p.set = false; p.vx = dx / d * 3.2; p.vy = -2 - Math.random() * 2.4; p.vr = (Math.random() - 0.5) * 0.5; }
+        else if (p.y < groundAt(p.x) - 6) { p.set = false; p.vy = 0; }
+      } else {
+        p.vy += 0.09; p.vx *= 0.992; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        if (p.x < 0 || p.x > w) { p.vx *= -0.5; p.x = Math.max(0, Math.min(w, p.x)); }
+        const g = groundAt(p.x);
+        if (p.y >= g) { p.y = g; p.set = true; p.vx = 0; p.vy = 0; }
+      }
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.globalAlpha = 0.95; ctx.fillStyle = p.c; ctx.fillRect(-p.s, -p.s * 0.6, p.s * 2, p.s * 1.2); ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    // party popper image (party.png)
+    if (!cvel._pop) { const im = new Image(); im.src = 'uploads/party.png'; cvel._pop = im; }
+    if (cvel._pop.complete && cvel._pop.naturalWidth) { ctx.drawImage(cvel._pop, imgX, imgY, iw, ih); }
+    ctx.fillStyle = pal.muted; ctx.globalAlpha = 0.75; ctx.font = "9px 'JetBrains Mono',monospace"; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText('click the popper', w - 10, h - 6); ctx.textAlign = 'left'; ctx.globalAlpha = 1;
+  };
+
+  renderVals() {
+    const dark = this.state.dark;
+    const personalTitles = ['Haptic Navigation Gloves for BLV Users', 'NYT Wordle Solver AI Bot', 'Real-Time Astigmatism & Myopia Vision Simulator', 'Mem: NeRF-Powered 3D Memory Capture', 'Anchor: Journal & Planner', 'Self-driving F1 Racing Simulator', 'Amazon Alexa Audio Style Transfer', 'Moodnotes: Moodboards + Notes', 'SoundSync: Emotion-Based Music Player and Recommender', 'Better YouTube Translate Extension', 'Offline AR Maps App'];
+    const personalTags = ['Robotics / Accessibility Research', 'Information Theory / AI', 'Vision Sim', 'Graphics Research', 'Web App', 'Graphics / Simulation', 'Audio ML', 'Web App', 'Music ML', 'Browser Extension', 'Mixed Reality'];
+    const berkeleyTitles = ['Celestial Phenomena Simulator', 'Secure File Sharing System', 'Multi-Agent Search', 'Pacman Reinforcement Learning', 'Breaching a Vulnerable Web Server', 'Cloth Simulation', 'Rasterizer', 'Ray Tracing', '3D Graphics with Bézier Curves', 'Ants vs Bees (Plants vs Zombies inspired game)', 'Rooms & Hallways (2D Color Maze)', 'Scheme Interpreter'];
+    const berkeleyTags = ['Simulation', 'Security', 'AI / Search', 'ML', 'Security', 'Physics Sim', 'Graphics', 'Graphics', '3D Graphics', 'Game', 'Game', 'Interpreter'];
+    const personalTech = [
+      ['C++', 'ESP32', 'Haptics', 'Arduino'],
+      ['Python', 'NumPy', 'Information Theory'],
+      ['Three.js', 'WebGL', 'GLSL'],
+      ['PyTorch', 'NeRF', 'Python', 'CUDA'],
+      ['React', 'TypeScript', 'Firebase'],
+      ['Python', 'PyTorch', 'Unity'],
+      ['Python', 'TensorFlow', 'AWS Lambda'],
+      ['React', 'Next.js', 'Supabase'],
+      ['Python', 'Librosa', 'scikit-learn', 'Spotify API'],
+      ['TypeScript', 'Chrome API', 'WebExtensions'],
+      ['Swift', 'ARKit', 'MapKit'],
+    ];
+    const berkeleyTech = [
+      ['C++', 'OpenGL', 'GLSL'],
+      ['Go', 'Cryptography'],
+      ['Python', 'A* / Search'],
+      ['Python', 'NumPy', 'Q-Learning'],
+      ['C', 'GDB', 'x86 Assembly'],
+      ['C++', 'OpenGL', 'GLSL'],
+      ['C++', 'SVG', 'Sampling'],
+      ['C++', 'BVH', 'Ray Tracing'],
+      ['C++', 'OpenGL', 'Bézier'],
+      ['Python', 'OOP'],
+      ['Java', 'Data Structures'],
+      ['Python', 'Interpreters'],
+    ];
+    const personal = this._makeProjects('Personal', 'p', personalTitles, personalTags, personalTech);
+    const berkeley = this._makeProjects('Berkeley', 'b', berkeleyTitles, berkeleyTags, berkeleyTech);
+
+    const acronym = [
+      { letter: 'S', word: 'Speculative', delay: '.15s' },
+      { letter: 'A', word: 'and', delay: '.28s' },
+      { letter: 'N', word: 'Novel', delay: '.41s' },
+      { letter: 'E', word: 'Engineering', delay: '.54s' },
+    ].map((a) => ({
+      ...a,
+      color: 'var(--ink)',
+      lift: 'translateY(0)',
+      enter: (e) => {
+        const box = e.currentTarget;
+        const big = box.firstChild;
+        big.style.color = 'var(--accent)';
+        big.style.transform = 'translateY(-10px)';
+      },
+      leave: (e) => {
+        const box = e.currentTarget;
+        const big = box.firstChild;
+        big.style.color = 'var(--ink)';
+        big.style.transform = 'translateY(0)';
+      },
+    }));
+
+    const mkHover = (overStyle) => ({
+      over: (e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.transform = 'translateY(-3px)'; },
+      out: (e) => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.transform = 'none'; },
+    });
+
+    const industry = [
+      { company: 'Live150.ai', role: 'AI Engineer Intern · Computer Vision & AI Agent', period: 'Summer 2025', slotId: 'logo-1', logo: 'uploads/live150.png' },
+      { company: 'SkyIT Services', role: 'Software Developer Intern · Full-Stack Platform', period: 'Summer 2024', slotId: 'logo-2', logo: 'uploads/skyit-services.png' },
+      { company: 'STARLab', role: 'Design Engineer Intern · Software Simulation', period: 'Summer 2021', slotId: 'logo-3', logo: 'uploads/starlab.png' },
+    ].map((j) => ({ ...j, ...mkHover(), logoRef: (el) => { if (el && !el.src.endsWith(j.logo)) el.src = j.logo; } }));
+
+    const socials = [
+      { label: 'LinkedIn', href: '#', icon: 'IN' },
+      { label: 'Email', href: 'mailto:sam@example.com', icon: '@' },
+      { label: 'GitHub', href: 'https://github.com/sane24', icon: 'GH' },
+      { label: 'Résumé', href: '#', icon: '↗' },
+    ].map((s) => ({
+      ...s,
+      over: (e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.transform = 'translateY(-2px)'; },
+      out: (e) => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.transform = 'none'; },
+    }));
+
+    return {
+      themeIcon: dark ? '☀' : '☾',
+      onToggleTheme: this.onToggleTheme,
+      hoverLink: this.hoverLink, unhoverLink: this.unhoverLink,
+      btnOver: this.btnOver, btnOut: this.btnOut,
+      ghostOver: this.ghostOver, ghostOut: this.ghostOut,
+      canvasRef: (el) => { this._canvas = el; },
+      aboutCvRef: (el) => { this._aboutCv = el; },
+      armCvRef: (el) => { this._armCv = el; },
+      armTimeRef: (el) => { this._armTimeEl = el; },
+      armBestRef: (el) => { this._armBestEl = el; },
+      restartArm: this.restartArm,
+      floraLRef: (el) => { this._floraL = el; },
+      floraRRef: (el) => { this._floraR = el; },
+      grassRef: (el) => { this._grassCv = el; },
+      confettiRef: (el) => { this._confettiCv = el; },
+      mode: this.state.mode || this._mode || 'play',
+      cornerReady: this.state.cornerReady,
+      cornerBtnRef: (el) => { this._cornerBtn = el; },
+      takeCorner: this.takeCorner,
+      modeBtns: [
+        { key: 'play', label: 'F1 + Soccer' },
+        { key: 'blueprint', label: 'Stadium' },
+        { key: 'none', label: 'Off' },
+      ].map((m) => ({ ...m, onClick: () => this.setMode(m.key) })),
+      acronym,
+      ...(() => {
+        const hd = [
+          { name: 'Digital art', kind: 'Artwork', caps: ['Character: Aglaea — Background: 3D modeled environment', 'Work in Progress — Reze from Chainsaw Man', 'Robin Sketch'] },
+          { name: '3D modeling', kind: 'Render', caps: ['3D Model', '3D Model', '3D Model'] },
+          { name: 'Formula 1', kind: 'Photo', caps: ['Max Verstappen winning F1 Italian Grand Prix', 'Red Bull RB16B', '1988 McLaren MP4'] },
+          { name: 'Soccer', kind: 'Photo', caps: ['Kaoru Mitoma: the man who studied dribbling', "Mitoma's Dribbling Thesis paper", 'My Favorite game: Argentina vs France 2022 World Cup'] },
+          { name: 'Poker', kind: 'Photo', caps: ['Playing Poker :)', 'Balatro: Roguelike Poker Style game'] },
+          { name: 'VR games', kind: 'Screenshot', caps: ['Beat Saber', 'Superhot VR'] },
+          { name: 'Photography', kind: 'Photo', caps: ['Berkeley Libraries', 'Berkeley House', 'SF road'] },
+          { name: 'Cooking', kind: 'Dish', caps: ['Katsu Curry!', 'Cheeseburgers!', 'Tiramisu'] },
+        ];
+        const open = this.state.openHobby == null ? -1 : this.state.openHobby;
+        const hov = this.state.hoverHobby == null ? -1 : this.state.hoverHobby;
+        const hobbies = hd.map((h, i) => { const active = i === open, hovered = i === hov; return { name: h.name, toggle: () => this.setState((s) => ({ openHobby: s.openHobby === i ? null : i })), enter: () => this.setState({ hoverHobby: i }), leave: () => this.setState((s) => (s.hoverHobby === i ? { hoverHobby: null } : {})), bg: active ? 'var(--accent)' : (hovered ? 'var(--soft)' : 'var(--bg2)'), fg: active ? 'var(--accent-ink)' : (hovered ? 'var(--accent)' : 'var(--ink)'), border: (active || hovered) ? 'var(--accent)' : 'var(--line)' }; });
+        const cur = open >= 0 ? hd[open] : null;
+        const openHobbyImages = cur ? cur.caps.map((c, j) => ({ cap: c, kind: cur.kind, slotId: 'hobby-' + open + '-' + j })) : null;
+        return { hobbies, openHobbyImages, openHobbyName: cur ? cur.name : '' };
+      })(),
+      industry,
+      personal, berkeley,
+      projectCount: '24 total',
+      skills: [
+        { title: 'Languages', items: ['Python','TypeScript / JavaScript','Java','C++','C','C#','Swift','Go','Rust','R','SQL','HTML/CSS'] },
+        { title: 'Frameworks & Tools', items: ['React / Next.js','PyTorch / OpenCV','Unity / ARKit','NodeJS','Docker','Three.js / WebGL','Git / Linux','Flask','MongoDB','Firebase','AWS','Kubernetes'] },
+      ],
+      leadership: [
+        {
+          role: 'Selected AI & Robotics Research Speaker',
+          orgMain: 'Silicon Valley Robotics Fair', orgSub: 'Be the Change Foundation',
+          place: 'San Mateo, CA',
+          period: 'Aug 2026',
+          bullet: 'Presenting research on multimodal AI, human–robot interaction, and accessibility robotics at the Silicon Valley Robotics Fair, representing UC Berkeley research to industry and community attendees.',
+        },
+        {
+          role: 'President & Finance Lead',
+          orgMain: 'Genshin @ Berkeley', orgSub: 'Video Game Club',
+          place: 'Berkeley, CA',
+          period: 'Aug 2024 – Present',
+          bullet: 'Leading the planning and execution of club events and fundraisers as President, managing financial strategy across asset organization, collaborations with video-game companies, and art merchandising to increase club revenue.',
+        },
+      ],
+      awards: [
+        { title: 'UC Berkeley AI Hackathon Poker Tournament', meta: '2026', detail: 'Top 4 Finalist · #1 overall bankroll after preliminary rounds' },
+        { title: 'International Informatics Olympiad', meta: '2020–21', detail: 'International Rank 21 (2021) · Gold Medal (2020)' },
+        { title: 'SOF International Math Olympiad', meta: '2020–21', detail: 'Gold Medal (2021) · International Rank 319 (2020)' },
+      ],
+      coursework: [
+        { code: 'Data C8', short: 'Data Science', name: 'Data Science', grade: 'A+', desc: 'Computational and inferential thinking, sampling, simulation, hypothesis testing, regression, and prediction on real-world datasets.' },
+        { code: 'CS 61B', short: 'Data Structures', name: 'Data Structures & Algorithms', grade: 'A', w: 44, desc: 'Designing and analyzing efficient data structures and algorithms in Java, with a strong emphasis on real software engineering.' },
+        { code: 'CS 188', short: 'Artificial Intelligence', name: 'Artificial Intelligence', grade: 'A+', desc: 'Search, adversarial games, constraint satisfaction, MDPs, reinforcement learning, and probabilistic reasoning under uncertainty.' },
+        { code: 'CS 189', short: 'Machine Learning', name: 'Machine Learning', grade: 'A+', w: 66, desc: 'The theory and practice of machine learning, regression, SVMs, neural networks, and unsupervised methods.' },
+        { code: 'CS 184', short: 'Computer Graphics', name: 'Computer Graphics', grade: 'A', desc: 'Rasterization, ray tracing, geometric modeling, and physically-based rendering and simulation.' },
+        { code: 'CS 168', short: 'Internet Architecture', name: 'Internet Architecture & Protocols', grade: 'A', desc: 'How the Internet actually works, routing, congestion control, DNS, and network security.' },
+        { code: 'Cogsci 131', short: 'Computational Models', name: 'Computational Models of Cognition', grade: 'A+', w: 46, desc: 'Computational accounts of human cognition, Bayesian models, neural networks, reinforcement learning, and decision-making.' },
+        { code: 'EECS 126', short: 'Probability', name: 'Probability & Random Processes', grade: 'A', desc: 'Probability foundations for EECS, random variables, Markov chains, estimation, and stochastic processes.' },
+        { code: 'CS 170', short: 'Efficient Algorithm', name: 'Efficient Algorithms & Intractable Problems', grade: 'A-', desc: 'Algorithm design paradigms, divide-and-conquer, graph algorithms, dynamic programming, and the theory of NP-completeness.' },
+        { code: 'CS 61C', short: 'Computer Architecture', name: 'Great Ideas of Computer Architecture', grade: 'A-', desc: 'The hardware–software interface, C, assembly, caches, pipelining, and how machines actually run programs.' },
+        { code: 'AEROENG 10', short: 'Aerospace Design', name: 'Introduction to Aerospace Engineering Design', grade: 'A', desc: 'Fundamentals of aerospace vehicle design, aerodynamics, propulsion, structures, and the engineering design process.' },
+        { code: 'CS 198', short: 'VR Development', name: 'Virtual Reality Development Decal', grade: 'P', desc: 'Student-led decal building immersive virtual reality experiences with modern VR development toolkits.' },
+        { code: 'CS 197', short: 'Fullstack Dev', name: 'Fullstack Development Decal', grade: 'P', desc: 'Student-led decal on end-to-end full-stack web development, front-end, backend, and deployment.' },
+        { code: 'COGSCI 1', short: 'Cognitive Science', name: 'Introduction to Cognitive Science', grade: 'A', desc: 'A broad survey of the mind, perception, language, memory, reasoning, and learning across psychology, linguistics, neuroscience, and AI.' },
+      ].map((c, i) => this._mkBook(c, i)),
+      inProgress: [
+        { code: 'CS 160', short: 'UI/UX Design', name: 'UI/UX Design & Development', grade: 'In progress', desc: 'User-centered design, rapid prototyping, and building polished, usable interactive interfaces.' },
+        { code: 'CS 180', short: 'Computer Vision', name: 'Computer Vision', grade: 'In progress', desc: 'Image formation, features and matching, multi-view geometry, and deep learning for visual recognition.' },
+      ].map((c, i) => this._mkBook(c, i + 5)),
+      artWins: [
+        { title: 'Nyan Cat Cosplaying as a Minecraft Pig 🐷🌈', comp: 'Final Art Competition #4 · 1st Place Winner', img: 'uploads/art-nyancat.gif', detail: `A rainbow-swirled Nyan Cat walked into my cloth simulator and said, "I'm the main character now." So I gave it collision physics, shader sparkles, a minecraft pig cosplay, and a magical rainbow cape, though the magic got a little out of hand and the cape didn't stick around for long :P
+
+I started by extending the simulator with custom cube support, by implementing a new Cube class with collision detection, bounding boxes, and json parsing logic, allowing me to place rigid cube objects that interact with cloth in the scene. Once cubes were in, I wrote the collision response to gently push point masses out of cubes when intersecting. Next, I added a wind system that applied force to cloth triangles based on their normals. To make it dynamic, I modulated the wind using sine waves and added GUI sliders to control the wind direction. This gave the rainbow cloth a beautiful flutter effect and let me change its direction and speed to simulate it for the final video.
+
+For the model itself, I assembled the cat entirely using the json cube and sphere objects. One big cubes made the body, small ones stacked to form triangle-shaped ears, legs made of cubes, eyes made of spheres, and a arc tail in the back. It was like building a voxel sculpture one block at a time. Finally, I wrote a custom GLSL fragment shader to bring the cat to life. The shader blended rainbow gradients across the body, added toon shading with soft lighting quantization, and layered in sparkles and iridescent tints that shimmered beautifully across the cat's surface.
+
+The result looked like Nyan Cat collided with a shader art blog and respawned in a Minecraft server, like a vaporwave nyan cat in minecraft cosplay, utterly ridiculous but absolutely aesthetic!` },
+        { title: 'Blorb of the Abyss', comp: 'Art Competition #3 · 1st Place Winner', img: 'uploads/art-blorb.png', detail: `I chose to render a jellyfish because they are small, shiny, and just a lil bit magical. ✨
+
+I created the glowing jellyfish scene by starting with the empty room collada file, and adding in a jellyfish and spherical water bubbles, fixing their geometry and exporting it back as a .dae. To bring the jellyfish to life, I gave it an emissive "light" material so it would act as a soft area light. To create the underwater scene, I treated the ceiling of the room as the ocean's surface and gave it a similar bright, bluish emissive material.
+
+Following the Sp21 pathtracer project, I extended our pathtracer to accept more BSDF materials (mirror, glass, liquid), allowing for better reflection and realistic refraction, and added an environment light enabling soft ambient illumination across the scene.
+
+All elements came together in the final rendered frame of 2048 samples per pixel, making a jellyfish too shy to surface, and too bright to ignore :)` },
+        { title: 'Boba Blueprint Battle', comp: 'Art Competition #2 · 3rd Place Winner', img: 'uploads/bobablueprintbattle.png', detail: `A cold war, but for boba! I started by modeling a boba cup with a straw, ice cubes and pearls, and a low-poly penguin. To distinguish the 2 duplicated penguins and enhance the scene, I used mesh transformations to move, scale and rotate them into a face off, adjusting their eyeballs to stare at each other in a silent boba making rivalry.
+
+Then, I applied a glass-like shader to make the models semi-transparent, allowing underlying structures of the tapioca pearls and ice cubes to be visible, and enabled wireframe view for the middle cup giving it an X-ray blueprint effect which added a really unique look.` },
+      ].map((a, i) => { const o = { ...a, section: 'Art', num: String(i + 1).padStart(2, '0'), tag: 'Computer Graphics', bg: this._bgs[(i + 2) % this._bgs.length], shotId: 'art-' + (i + 1), over: this.cardOver, out: this.cardOut }; o.imgRef = (el) => { if (el && el.getAttribute('src') !== o.img) el.src = o.img; }; o.open = () => this.openProject(o); return o; }),
+      rippleLayerRef: (el) => { this._rippleLayer = el; },
+      onFooterMove: this.onFooterMove,
+      onFooterDown: this.onFooterDown,
+      socials,
+      selected: this.state.selected,
+      selectedImgRef: (el) => { const s = this.state.selected; if (el && s && s.img && el.getAttribute('src') !== s.img) el.src = s.img; },
+      onCloseProject: this.onCloseProject,
+      course: this.state.course,
+      onCloseCourse: this.onCloseCourse,
+      stop: this.stop,
+    };
   }
-})();
+}
+return Component;
+};
