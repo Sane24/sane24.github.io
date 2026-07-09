@@ -3,7 +3,7 @@
 // with the runtime-injected DCLogic base class and React.
 window.__PortfolioComponent = function (DCLogic, React) {
 class Component extends DCLogic {
-  state = { dark: false, selected: null, course: null, mode: null, cornerReady: false };
+  state = { dark: false, selected: null, course: null, mode: null, cornerReady: false, lightbox: null };
 
   _score = 0;
   _lookAccent = { blueprint: '#2C3BEA', riso: '#EA4E2B', analog: '#B5623A', brutal: '#4A3AEE', noir: '#B8945A' };
@@ -13,6 +13,10 @@ class Component extends DCLogic {
     // hero background mode
     this._mode = this.props.heroMode || 'play';
     this.setState({ mode: this._mode });
+    // preload + decode hobby gallery images (kept on the instance so they aren't GC'd) → they display instantly, no white flash
+    this._preloadedImgs = ['uploads/Aglaea.png', 'uploads/work-in-progress.png', 'uploads/berkeley-photo1.jpg', 'uploads/berkeley-photo2.jpg', 'uploads/maxverstappengp.webp', 'uploads/rb16b.webp', 'uploads/1988mclaren.webp', 'uploads/haaland.png', 'uploads/mitoma_getty.jpg', 'uploads/dribbling-thesis.jpg', 'uploads/bluelocknagi.jpg', 'uploads/Poker.webp', 'uploads/balatro.avif', 'uploads/slaythespire.avif', 'uploads/beat-saber-5.webp', 'uploads/superhot-vr.jpg'].map((s) => { const im = new Image(); im.src = s; if (im.decode) im.decode().catch(() => {}); return im; });
+    this._onKey = (e) => { if (e.key === 'Escape' && this.state.lightbox) this.onCloseLightbox(); };
+    window.addEventListener('keydown', this._onKey);
     setTimeout(() => this._paintPills(), 0);
 
     // theme from storage
@@ -97,6 +101,7 @@ class Component extends DCLogic {
     if (this._raf) cancelAnimationFrame(this._raf);
     if (this._onResize) window.removeEventListener('resize', this._onResize);
     if (this._onMove) window.removeEventListener('pointermove', this._onMove);
+    if (this._onKey) window.removeEventListener('keydown', this._onKey);
     if (this._ro) this._ro.disconnect();
     (this._secRAF || []).forEach((id) => cancelAnimationFrame(id));
     (this._secCleanup || []).forEach((fn) => { try { fn(); } catch (e) {} });
@@ -171,9 +176,9 @@ class Component extends DCLogic {
         const target = Math.atan2(dy, dx);
         let da = target - car.angle;
         da = Math.atan2(Math.sin(da), Math.cos(da));
-        car.angle += da * 0.1;
-        const want = Math.min(dist * 0.08, 8);
-        car.speed += (want - car.speed) * 0.12;
+        car.angle += da * 0.16;
+        const want = Math.min(dist * 0.14, 14);
+        car.speed += (want - car.speed) * 0.18;
       } else {
         car.speed += (0 - car.speed) * 0.25;
         if (car.speed < 0.06) car.speed = 0;
@@ -183,9 +188,14 @@ class Component extends DCLogic {
       car.x = Math.max(34, Math.min(w - 34, car.x));
       car.y = Math.max(34, Math.min(h - 34, car.y));
       // racing-line trail grows while moving, fades once parked
-      if (car.speed > 0.7) {
-        carTrail.push({ x: car.x - Math.cos(car.angle) * 20, y: car.y - Math.sin(car.angle) * 20 });
-        if (carTrail.length > 30) carTrail.shift();
+      if (car.speed > 0.5) {
+        // head of the trail sits just behind the car; add a mid-point on fast frames so
+        // the ribbon stays dense (and therefore smooth) even at high speed
+        const bx = car.x - Math.cos(car.angle) * 13, by = car.y - Math.sin(car.angle) * 13;
+        const last = carTrail[carTrail.length - 1];
+        if (last && car.speed > 7) carTrail.push({ x: (last.x + bx) / 2, y: (last.y + by) / 2 });
+        carTrail.push({ x: bx, y: by });
+        while (carTrail.length > 44) carTrail.shift();
       } else if (carTrail.length) {
         carTrail.shift();
       }
@@ -193,11 +203,22 @@ class Component extends DCLogic {
 
     const drawCarBody = () => {
       ctx.lineCap = 'round';
-      for (let i = 1; i < carTrail.length; i++) {
+      ctx.lineJoin = 'round';
+      const n = carTrail.length;
+      if (n > 2) {
         ctx.strokeStyle = pal.accent;
-        ctx.globalAlpha = (i / carTrail.length) * 0.4 * Math.min(1, car.speed / 3);
-        ctx.lineWidth = (i / carTrail.length) * 4;
-        ctx.beginPath(); ctx.moveTo(carTrail[i - 1].x, carTrail[i - 1].y); ctx.lineTo(carTrail[i].x, carTrail[i].y); ctx.stroke();
+        for (let i = 2; i < n; i++) {
+          const t = i / n;
+          ctx.globalAlpha = t * 0.4 * Math.min(1, car.speed / 3);
+          ctx.lineWidth = t * 4;
+          const p0 = carTrail[i - 1], p1 = carTrail[i], pm = carTrail[i - 2];
+          const m0 = { x: (pm.x + p0.x) / 2, y: (pm.y + p0.y) / 2 };
+          const m1 = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
+          ctx.beginPath();
+          ctx.moveTo(m0.x, m0.y);
+          ctx.quadraticCurveTo(p0.x, p0.y, m1.x, m1.y);
+          ctx.stroke();
+        }
       }
       ctx.globalAlpha = 1;
       ctx.save();
@@ -254,7 +275,7 @@ class Component extends DCLogic {
       if (ball.y > h - r) { ball.y = h - r; ball.vy *= -0.72; }
       ball.rot += (ball.vx >= 0 ? 1 : -1) * Math.hypot(ball.vx, ball.vy) / r;
       // ball sitting in the actual top-right or bottom-right corner of the hero → offer a corner kick
-      const inRightCorner = ball.x > w - r - 160 && (ball.y < r + 160 || ball.y > h - r - 160);
+      const inRightCorner = ball.x > w - r - 160 && (ball.y < r + 90 || ball.y > h - r - 90);
       if (ball.shot <= 0 && inRightCorner) {
         this._cornerHold = 60;                       // keep the offer alive through jitter
         this._cornerT = (this._cornerT || 0) + 1;
@@ -343,10 +364,25 @@ class Component extends DCLogic {
     };
 
     // combined play: drive the F1 car with your cursor to knock the ball into the goal
+    // physics advance on a fixed timestep so the car keeps a constant real-world speed
+    // even when the render frame-rate dips (other canvases, image decodes, tab throttling)
+    const PHYS_STEP = 1000 / 60;
+    const stepPlay = () => {
+      const now = performance.now();
+      if (this._physLast == null) this._physLast = now;
+      let elapsed = now - this._physLast;
+      this._physLast = now;
+      // returning from a stall / hidden tab: take a single step, never fast-forward a huge jump
+      if (elapsed > 250 || elapsed < 0) elapsed = PHYS_STEP;
+      this._physAcc = (this._physAcc || 0) + elapsed;
+      let n = 0;
+      while (this._physAcc >= PHYS_STEP && n < 6) { updateCar(); updateBall(); this._physAcc -= PHYS_STEP; n++; }
+      if (this._physAcc > PHYS_STEP) this._physAcc = 0; // cap any remaining backlog
+    };
+
     const drawPlay = () => {
       if (this._mode !== 'blueprint') drawPenalty();
-      updateCar();
-      updateBall();
+      stepPlay();
       drawGoal();
       drawBallBody();
       drawCarBody();
@@ -847,6 +883,14 @@ class Component extends DCLogic {
 
   openProject = (p) => { this.setState({ selected: p }); document.body.style.overflow = 'hidden'; };
   onCloseProject = () => { this.setState({ selected: null }); document.body.style.overflow = ''; };
+  openLightbox = (item) => { this.setState({ lightbox: item }); document.body.style.overflow = 'hidden'; };
+  onCloseLightbox = () => { this.setState({ lightbox: null }); document.body.style.overflow = ''; };
+  scrollToArtGrass = () => {
+    const g = this._grassCv;
+    if (!g) { const el = document.getElementById('projects'); if (el) window.scrollTo({ top: el.getBoundingClientRect().bottom + window.scrollY - window.innerHeight, behavior: 'smooth' }); return; }
+    const grassBottom = g.getBoundingClientRect().bottom + window.scrollY; // full grass visible at the bottom edge
+    window.scrollTo({ top: Math.max(0, grassBottom - window.innerHeight), behavior: 'smooth' });
+  };
   openCourse = (c) => { this.setState({ course: c }); document.body.style.overflow = 'hidden'; };
   onCloseCourse = () => { this.setState({ course: null }); document.body.style.overflow = ''; };
   stop = (e) => { e.stopPropagation(); };
@@ -927,15 +971,23 @@ class Component extends DCLogic {
     let w = 0, h = 0; const m = { x: -9999, y: -9999, tx: -9999, ty: -9999, mv: 0, on: false };
     const resize = () => { const r = cv.getBoundingClientRect(); w = r.width; h = r.height; cv.width = Math.max(1, w * dpr); cv.height = Math.max(1, h * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); };
     resize(); const ro = ('ResizeObserver' in window) ? new ResizeObserver(resize) : null; if (ro) ro.observe(cv);
-    const onMove = (e) => { const r = cv.getBoundingClientRect(); const nx = e.clientX - r.left, ny = e.clientY - r.top; m.tx = nx; m.ty = ny; m.mv = Math.min(1, m.mv + 0.5); m.on = nx >= -60 && nx <= w + 60 && ny >= -60 && ny <= h + 60; };
+    // store the pointer's viewport coords; canvas-relative position is derived
+    // every frame in the loop so scrolling (canvas moves, mouse still) tracks too
+    const onMove = (e) => { m.gx = e.clientX; m.gy = e.clientY; m.hasG = true; m.mv = Math.min(1, m.mv + 0.5); };
     window.addEventListener('pointermove', onMove);
     const onDown = (e) => { const r = cv.getBoundingClientRect(); const nx = e.clientX - r.left, ny = e.clientY - r.top; if (nx >= 0 && nx <= w && ny >= 0 && ny <= h) { m.click = { x: nx, y: ny }; m.down = true; } };
     const onUp = () => { m.down = false; };
     window.addEventListener('pointerdown', onDown); window.addEventListener('pointerup', onUp);
     this._secCleanup.push(() => { if (ro) ro.disconnect(); window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerdown', onDown); window.removeEventListener('pointerup', onUp); });
-    let t = 0;
+    let t = 0; let _last = performance.now();
     const loop = () => {
       if (w > 0 && h > 0) {
+        // frame-rate-independent delta (1.0 == a 60fps frame) so physics runs at the
+        // same real-time speed whether the page renders at 60, 120, or a throttled fps
+        const _now = performance.now(); m.dt = Math.min(3, (_now - _last) / 16.667); _last = _now;
+        // recompute canvas-relative pointer every frame from viewport coords so the
+        // reticle stays under the cursor while scrolling, not just on pointermove
+        if (m.hasG) { const r = cv.getBoundingClientRect(); m.tx = m.gx - r.left; m.ty = m.gy - r.top; m.on = m.tx >= -60 && m.tx <= w + 60 && m.ty >= -60 && m.ty <= h + 60; }
         if (m.x < -9000) { m.x = m.tx; m.y = m.ty; }
         m.x += (m.tx - m.x) * 0.1; m.y += (m.ty - m.y) * 0.1; m.mv *= 0.93;
         const cs = getComputedStyle(document.documentElement);
@@ -1195,7 +1247,8 @@ class Component extends DCLogic {
         if (m.on && Math.hypot(p.x - m.x, p.y - m.y) < 24) { const dx = p.x - m.x, dy = p.y - m.y, d = Math.hypot(dx, dy) || 1; p.set = false; p.vx = dx / d * 3.2; p.vy = -2 - Math.random() * 2.4; p.vr = (Math.random() - 0.5) * 0.5; }
         else if (p.y < groundAt(p.x) - 6) { p.set = false; p.vy = 0; }
       } else {
-        p.vy += 0.09; p.vx *= 0.992; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        const dt = (m.dt || 1) * 2.8;
+        p.vy += 0.09 * dt; p.vx *= Math.pow(0.992, dt); p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
         if (p.x < 0 || p.x > w) { p.vx *= -0.5; p.x = Math.max(0, Math.min(w, p.x)); }
         const g = groundAt(p.x);
         if (p.y >= g) { p.y = g; p.set = true; p.vx = 0; p.vy = 0; }
@@ -1311,28 +1364,59 @@ class Component extends DCLogic {
       cornerBtnRef: (el) => { this._cornerBtn = el; },
       takeCorner: this.takeCorner,
       modeBtns: [
-        { key: 'play', label: 'F1 + Soccer' },
+        { key: 'play', label: 'Formula' },
         { key: 'blueprint', label: 'Stadium' },
         { key: 'none', label: 'Off' },
       ].map((m) => ({ ...m, onClick: () => this.setMode(m.key) })),
       acronym,
       ...(() => {
         const hd = [
-          { name: 'Digital art', kind: 'Artwork', caps: ['Character: Aglaea — Background: 3D modeled environment', 'Work in Progress — Reze from Chainsaw Man', 'Robin Sketch'] },
-          { name: '3D modeling', kind: 'Render', caps: ['3D Model', '3D Model', '3D Model'] },
-          { name: 'Formula 1', kind: 'Photo', caps: ['Max Verstappen winning F1 Italian Grand Prix', 'Red Bull RB16B', '1988 McLaren MP4'] },
-          { name: 'Soccer', kind: 'Photo', caps: ['Kaoru Mitoma: the man who studied dribbling', "Mitoma's Dribbling Thesis paper", 'My Favorite game: Argentina vs France 2022 World Cup'] },
-          { name: 'Poker', kind: 'Photo', caps: ['Playing Poker :)', 'Balatro: Roguelike Poker Style game'] },
-          { name: 'VR games', kind: 'Screenshot', caps: ['Beat Saber', 'Superhot VR'] },
-          { name: 'Photography', kind: 'Photo', caps: ['Berkeley Libraries', 'Berkeley House', 'SF road'] },
+          { name: 'Digital art', kind: 'Artwork', caps: ['Character: Aglaea  ·  Background: 3D modeled environment', 'Work in Progress Art, Reze from Chainsaw Man'], imgs: ['uploads/Aglaea.png', 'uploads/work-in-progress.png'] },
+          { name: '3D modeling', kind: 'Render', caps: [] },
+          { name: 'Formula 1', kind: 'Photo', caps: ['Max Verstappen winning F1 Italian Grand Prix', 'Red Bull RB16B', '1988 McLaren MP4'], imgs: ['uploads/maxverstappengp.webp', 'uploads/rb16b.webp', 'uploads/1988mclaren.webp'] },
+          { name: 'Soccer', kind: 'Photo', layout: 'soccer', caps: ['Erling Haaland', 'Blue Lock: Episode Nagi', "Mitoma's Dribbling Thesis paper", 'Kaoru Mitoma: the man who studied dribbling'], imgs: ['uploads/haaland.png', 'uploads/bluelocknagi.jpg', 'uploads/dribbling-thesis.jpg', 'uploads/mitoma_getty.jpg'] },
+          { name: 'Card games', kind: 'Photo', caps: ["Poker / Texas Hold'em", 'Slay the Spire', 'Balatro: Roguelike Card Game'], imgs: ['uploads/Poker.webp', 'uploads/slaythespire.avif', 'uploads/balatro.avif'] },
+          { name: 'VR games', kind: 'Screenshot', caps: ['Beat Saber', 'Superhot VR'], imgs: ['uploads/beat-saber-5.webp', 'uploads/superhot-vr.jpg'] },
+          { name: 'Photography', kind: 'Photo', caps: ['Berkeley Libraries', 'Night House'], imgs: ['uploads/berkeley-photo1.jpg', 'uploads/berkeley-photo2.jpg'] },
           { name: 'Cooking', kind: 'Dish', caps: ['Katsu Curry!', 'Cheeseburgers!', 'Tiramisu'] },
         ];
         const open = this.state.openHobby == null ? -1 : this.state.openHobby;
         const hov = this.state.hoverHobby == null ? -1 : this.state.hoverHobby;
         const hobbies = hd.map((h, i) => { const active = i === open, hovered = i === hov; return { name: h.name, toggle: () => this.setState((s) => ({ openHobby: s.openHobby === i ? null : i })), enter: () => this.setState({ hoverHobby: i }), leave: () => this.setState((s) => (s.hoverHobby === i ? { hoverHobby: null } : {})), bg: active ? 'var(--accent)' : (hovered ? 'var(--soft)' : 'var(--bg2)'), fg: active ? 'var(--accent-ink)' : (hovered ? 'var(--accent)' : 'var(--ink)'), border: (active || hovered) ? 'var(--accent)' : 'var(--line)' }; });
         const cur = open >= 0 ? hd[open] : null;
-        const openHobbyImages = cur ? cur.caps.map((c, j) => ({ cap: c, kind: cur.kind, slotId: 'hobby-' + open + '-' + j })) : null;
-        return { hobbies, openHobbyImages, openHobbyName: cur ? cur.name : '' };
+        const IMG_AR = { 'uploads/Aglaea.png': 1840 / 1055, 'uploads/work-in-progress.png': 2048 / 2732, 'uploads/berkeley-photo1.jpg': 2880 / 2160, 'uploads/berkeley-photo2.jpg': 1215 / 1620, 'uploads/maxverstappengp.webp': 1200 / 960, 'uploads/rb16b.webp': 1024 / 618, 'uploads/1988mclaren.webp': 1280 / 843, 'uploads/haaland.png': 2036 / 1220, 'uploads/mitoma_getty.jpg': 780 / 520, 'uploads/dribbling-thesis.jpg': 724 / 1028, 'uploads/bluelocknagi.jpg': 1000 / 1500, 'uploads/Poker.webp': 2121 / 1414, 'uploads/balatro.avif': 1920 / 1080, 'uploads/slaythespire.avif': 1920 / 1080, 'uploads/beat-saber-5.webp': 1621 / 912, 'uploads/superhot-vr.jpg': 1920 / 1080 };
+        const openHobbyImages = cur ? cur.caps.map((c, j) => {
+          const img = cur.imgs ? cur.imgs[j] : null;
+          const ar = img ? (IMG_AR[img] || 1.4) : null;
+          const bespoke = cur.layout === 'soccer';
+          let capEl = null;
+          return {
+            cap: c, kind: cur.kind, img, hasImg: !!img, noImg: !img,
+            ar: img ? String(ar) : '4 / 3',
+            flex: img ? (ar + ' 1 ' + Math.round(ar * 190) + 'px') : '1 1 0',
+            cardBg: img ? 'var(--bg2)' : 'repeating-linear-gradient(45deg, var(--bg2), var(--bg2) 9px, var(--line2) 9px, var(--line2) 18px)',
+            open: img ? () => this.openLightbox({ img, cap: c }) : null,
+            capRef: (el) => { capEl = el; },
+            over: () => { if (capEl) capEl.style.opacity = '1'; },
+            out: () => { if (capEl) capEl.style.opacity = '0'; },
+            imgRef: (el) => {
+              if (!el) return;
+              if (img && el.getAttribute('src') !== img) el.src = img;
+              if (bespoke) return;
+              const ap = () => { if (el.naturalWidth && el.parentElement) { const r = el.naturalWidth / el.naturalHeight; const cd = el.parentElement; cd.style.flexGrow = r; cd.style.flexBasis = Math.round(r * 190) + 'px'; cd.style.aspectRatio = String(r); } };
+              if (el.complete && el.naturalWidth) ap(); else el.onload = ap;
+            },
+          };
+        }) : null;
+        const soccerMode = !!(cur && cur.layout === 'soccer' && openHobbyImages && openHobbyImages.length === 4);
+        const soccer = soccerMode ? { haaland: openHobbyImages[0], bluelock: openHobbyImages[1], thesis: openHobbyImages[2], mitoma: openHobbyImages[3] } : null;
+        let galleryMaxW, galleryWrap = 'wrap';
+        const nImg = openHobbyImages ? openHobbyImages.length : 0;
+        if (soccerMode) { galleryMaxW = 'clamp(320px, 82%, 920px)'; }
+        else if (nImg >= 4) { galleryMaxW = 'clamp(320px, 60%, 660px)'; galleryWrap = 'wrap'; }
+        else if (nImg === 3) { galleryMaxW = 'clamp(320px, 92%, 1120px)'; galleryWrap = 'nowrap'; }
+        else { galleryMaxW = 'clamp(320px, 66%, 860px)'; galleryWrap = 'wrap'; }
+        return { hobbies, openHobbyImages, openHobbyName: cur ? cur.name : '', galleryMaxW, galleryWrap, soccerMode, soccer, genericMode: !!openHobbyImages && !soccerMode, showArtLink: !!(cur && cur.name === '3D modeling'), scrollToArtGrass: this.scrollToArtGrass };
       })(),
       industry,
       personal, berkeley,
@@ -1407,6 +1491,9 @@ Then, I applied a glass-like shader to make the models semi-transparent, allowin
       socials,
       selected: this.state.selected,
       selectedImgRef: (el) => { const s = this.state.selected; if (el && s && s.img && el.getAttribute('src') !== s.img) el.src = s.img; },
+      lightbox: this.state.lightbox,
+      onCloseLightbox: this.onCloseLightbox,
+      lightboxImgRef: (el) => { const b = this.state.lightbox; if (el && b && b.img && el.getAttribute('src') !== b.img) el.src = b.img; },
       onCloseProject: this.onCloseProject,
       course: this.state.course,
       onCloseCourse: this.onCloseCourse,

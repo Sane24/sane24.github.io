@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
 <link rel="icon" href="./favicon-rose.png">
+<title>Sam's Portfolio</title>
 </head>
 <body>
 <x-dc>
@@ -71,7 +72,7 @@
   </section>
 
   <!-- ABOUT -->
-  <section id="about" data-reveal="" style="position:relative; overflow:hidden; transition:opacity .8s ease, transform .8s ease; max-width:1240px; margin:0 auto; padding:clamp(80px,13vh,160px) clamp(20px,5vw,72px);">
+  <section id="about" data-reveal="" style="position:relative; overflow:hidden; cursor:none; transition:opacity .8s ease, transform .8s ease; max-width:1240px; margin:0 auto; padding:clamp(80px,13vh,160px) clamp(20px,5vw,72px);">
     <canvas ref="{{ aboutCvRef }}" style="position:absolute; inset:0; width:100%; height:100%; z-index:2; pointer-events:none;"></canvas>
     <div style="display:flex; align-items:center; gap:16px; margin-bottom:clamp(40px,6vh,64px);">
       <span style="font-family:var(--font-mono); font-size:13px; color:var(--accent); letter-spacing:.1em;">01</span>
@@ -82,27 +83,13 @@
       <div style="grid-column:1;">
         <p style="font-family:var(--font-serif); font-size:clamp(22px,2.6vw,32px); line-height:1.42; margin:0 0 28px; max-width:62ch; text-wrap:pretty;">Software Engineer focused on <span style="color:var(--accent);">Computer Vision</span>, <span style="color:var(--accent);">Human-Computer Interaction</span>, <span style="color:var(--accent);">Multimodal</span> and <span style="color:var(--accent);">Embodied AI</span>, <span style="color:var(--accent);">Mixed Reality</span>, and <span style="color:var(--accent);">Full-Stack Development</span>.</p>
         <p style="font-size:17px; line-height:1.7; color:var(--muted); max-width:56ch; margin:0 0 40px; text-wrap:pretty;">HCI and Robotics Researcher @ the Jacobs Institute. I love creating and designing new things as a way to bring the many ideas I have to life, solve interesting and important problems, and put my creativity to work!</p>
-        <div>
+        <div style="margin-top:clamp(32px,7vh,90px);">
           <div style="font-family:var(--font-mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); margin-bottom:16px;">Off the clock</div>
           <div style="display:flex; flex-wrap:wrap; gap:10px;">
             <sc-for list="{{ hobbies }}" as="h" hint-placeholder-count="8">
               <button onClick="{{ h.toggle }}" onMouseEnter="{{ h.enter }}" onMouseLeave="{{ h.leave }}" style="font-family:var(--font-mono); font-size:13px; padding:7px 14px; border:1px solid {{ h.border }}; border-radius:2px; color:{{ h.fg }}; background:{{ h.bg }}; cursor:pointer; transition:border-color .2s ease, background .2s ease, color .2s ease;">{{ h.name }}</button>
             </sc-for>
           </div>
-          <sc-if value="{{ openHobbyImages }}" hint-placeholder-val="{{ false }}">
-            <div style="margin-top:72px;">
-              <div style="display:flex; flex-wrap:wrap; gap:14px;">
-                <sc-for list="{{ openHobbyImages }}" as="im" hint-placeholder-count="3">
-                  <div style="position:relative; flex:1 1 0; min-width:150px; aspect-ratio:4 / 3; border:1px solid var(--line); border-radius:3px; overflow:hidden; background:repeating-linear-gradient(45deg, var(--bg2), var(--bg2) 9px, var(--line2) 9px, var(--line2) 18px);">
-                    <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted);">{{ im.kind }}</div>
-                    <div style="position:absolute; inset:0; display:flex; align-items:flex-end; padding:12px; background:linear-gradient(to top, rgba(8,8,10,.82), rgba(8,8,10,0) 62%); opacity:0; transition:opacity .22s ease;" style-hover="opacity:1;">
-                      <span style="font-family:var(--font-mono); font-size:11.5px; color:#fff; line-height:1.45;">{{ im.cap }}</span>
-                    </div>
-                  </div>
-                </sc-for>
-              </div>
-            </div>
-          </sc-if>
         </div>
       </div>
       <div style="grid-column:2; justify-self:end;" data-portrait="">
@@ -110,6 +97,43 @@
         <div style="font-family:var(--font-mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin-top:12px; text-align:right;">Berkeley, CA · 37.87°N</div>
       </div>
     </div>
+    <sc-if value="{{ openHobbyImages }}" hint-placeholder-val="{{ false }}">
+      <div style="margin-top:clamp(36px,5vh,60px); max-width:{{ galleryMaxW }};">
+        <div style="font-family:var(--font-mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--accent); margin-bottom:16px;">{{ openHobbyName }}</div>
+        <sc-if value="{{ showArtLink }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ scrollToArtGrass }}" style="font-family:var(--font-mono); font-size:12px; letter-spacing:.05em; padding:11px 18px; margin-bottom:18px; border:1px solid var(--accent); border-radius:2px; background:var(--soft); color:var(--accent); cursor:pointer; display:inline-flex; align-items:center; gap:9px; transition:background .2s ease;">See my computer graphics artworks ↓</button>
+        </sc-if>
+        <sc-if value="{{ genericMode }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-wrap:{{ galleryWrap }}; gap:14px; align-items:flex-start;">
+            <sc-for list="{{ openHobbyImages }}" as="im" hint-placeholder-count="3">
+              <div style="position:relative; overflow:hidden; border:1px solid var(--line); border-radius:3px; flex:{{ im.flex }}; aspect-ratio:{{ im.ar }}; background:{{ im.cardBg }}; min-width:120px;" onClick="{{ im.open }}" onMouseEnter="{{ im.over }}" onMouseLeave="{{ im.out }}">
+                <sc-if value="{{ im.noImg }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted);">{{ im.kind }}</div>
+                </sc-if>
+                <sc-if value="{{ im.hasImg }}" hint-placeholder-val="{{ false }}">
+                  <img ref="{{ im.imgRef }}" alt="{{ im.cap }}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block;">
+                </sc-if>
+                <div ref="{{ im.capRef }}" style="position:absolute; inset:0; display:flex; align-items:flex-end; padding:12px; background:linear-gradient(to top, rgba(8,8,10,.82), rgba(8,8,10,0) 62%); opacity:0; transition:opacity .22s ease; pointer-events:none;">
+                  <span style="font-family:var(--font-mono); font-size:11.5px; color:#fff; line-height:1.45;">{{ im.cap }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ soccerMode }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; gap:14px; align-items:flex-start;">
+            <div style="flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:14px;">
+              <div style="position:relative; overflow:hidden; border:1px solid var(--line); border-radius:3px; background:var(--bg2); width:100%; aspect-ratio:1.6689;" onClick="{{ soccer.haaland.open }}" onMouseEnter="{{ soccer.haaland.over }}" onMouseLeave="{{ soccer.haaland.out }}"><img ref="{{ soccer.haaland.imgRef }}" alt="{{ soccer.haaland.cap }}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;"><div ref="{{ soccer.haaland.capRef }}" style="position:absolute; inset:0; display:flex; align-items:flex-end; padding:12px; background:linear-gradient(to top, rgba(8,8,10,.82), rgba(8,8,10,0) 62%); opacity:0; transition:opacity .22s ease; pointer-events:none;"><span style="font-family:var(--font-mono); font-size:11.5px; color:#fff; line-height:1.45;">{{ soccer.haaland.cap }}</span></div></div>
+              <div style="display:flex; gap:14px; align-items:flex-start;">
+                <div style="position:relative; overflow:hidden; border:1px solid var(--line); border-radius:3px; background:var(--bg2); min-width:0; flex:0.6667 1 0; aspect-ratio:0.6667;" onClick="{{ soccer.bluelock.open }}" onMouseEnter="{{ soccer.bluelock.over }}" onMouseLeave="{{ soccer.bluelock.out }}"><img ref="{{ soccer.bluelock.imgRef }}" alt="{{ soccer.bluelock.cap }}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;"><div ref="{{ soccer.bluelock.capRef }}" style="position:absolute; inset:0; display:flex; align-items:flex-end; padding:12px; background:linear-gradient(to top, rgba(8,8,10,.82), rgba(8,8,10,0) 62%); opacity:0; transition:opacity .22s ease; pointer-events:none;"><span style="font-family:var(--font-mono); font-size:11.5px; color:#fff; line-height:1.45;">{{ soccer.bluelock.cap }}</span></div></div>
+                <div style="position:relative; overflow:hidden; border:1px solid var(--line); border-radius:3px; background:var(--bg2); min-width:0; flex:1.5 1 0; aspect-ratio:1.5;" onClick="{{ soccer.mitoma.open }}" onMouseEnter="{{ soccer.mitoma.over }}" onMouseLeave="{{ soccer.mitoma.out }}"><img ref="{{ soccer.mitoma.imgRef }}" alt="{{ soccer.mitoma.cap }}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;"><div ref="{{ soccer.mitoma.capRef }}" style="position:absolute; inset:0; display:flex; align-items:flex-end; padding:12px; background:linear-gradient(to top, rgba(8,8,10,.82), rgba(8,8,10,0) 62%); opacity:0; transition:opacity .22s ease; pointer-events:none;"><span style="font-family:var(--font-mono); font-size:11.5px; color:#fff; line-height:1.45;">{{ soccer.mitoma.cap }}</span></div></div>
+              </div>
+            </div>
+            <div style="position:relative; overflow:hidden; border:1px solid var(--line); border-radius:3px; background:var(--bg2); min-width:0; flex:0.747 1 0; aspect-ratio:0.7043;" onClick="{{ soccer.thesis.open }}" onMouseEnter="{{ soccer.thesis.over }}" onMouseLeave="{{ soccer.thesis.out }}"><img ref="{{ soccer.thesis.imgRef }}" alt="{{ soccer.thesis.cap }}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;"><div ref="{{ soccer.thesis.capRef }}" style="position:absolute; inset:0; display:flex; align-items:flex-end; padding:12px; background:linear-gradient(to top, rgba(8,8,10,.82), rgba(8,8,10,0) 62%); opacity:0; transition:opacity .22s ease; pointer-events:none;"><span style="font-family:var(--font-mono); font-size:11.5px; color:#fff; line-height:1.45;">{{ soccer.thesis.cap }}</span></div></div>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
   </section>
 
   <!-- EXPERIENCE -->
@@ -336,6 +360,15 @@
       </div>
     </div>
   </footer>
+
+  <!-- HOBBY IMAGE LIGHTBOX -->
+  <sc-if value="{{ lightbox }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onCloseLightbox }}" style="position:fixed; inset:0; z-index:120; background:rgba(8,8,10,.85); backdrop-filter:blur(8px); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:clamp(20px,5vw,64px); cursor:zoom-out;">
+      <img ref="{{ lightboxImgRef }}" alt="{{ lightbox.cap }}" style="max-width:100%; max-height:82vh; object-fit:contain; border-radius:4px; box-shadow:0 44px 100px -30px rgba(0,0,0,.75);">
+      <div style="font-family:var(--font-mono); font-size:13px; color:#fff; margin-top:18px; letter-spacing:.04em; text-align:center; text-wrap:pretty;">{{ lightbox.cap }}</div>
+      <button onClick="{{ onCloseLightbox }}" aria-label="Close" style="position:fixed; top:22px; right:24px; width:40px; height:40px; border-radius:50%; border:1px solid rgba(255,255,255,.3); background:rgba(0,0,0,.4); color:#fff; cursor:pointer; font-size:17px; display:flex; align-items:center; justify-content:center;">✕</button>
+    </div>
+  </sc-if>
 
   <!-- PROJECT MODAL -->
   <sc-if value="{{ selected }}" hint-placeholder-val="{{ false }}">
