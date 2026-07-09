@@ -14,7 +14,8 @@ class Component extends DCLogic {
     this._mode = this.props.heroMode || 'play';
     this.setState({ mode: this._mode });
     // preload + decode hobby gallery images (kept on the instance so they aren't GC'd) → they display instantly, no white flash
-    this._preloadedImgs = ['uploads/Aglaea.png', 'uploads/work-in-progress.png', 'uploads/berkeley-photo1.jpg', 'uploads/berkeley-photo2.jpg', 'uploads/maxverstappengp.webp', 'uploads/rb16b.webp', 'uploads/1988mclaren.webp', 'uploads/haaland.png', 'uploads/mitoma_getty.jpg', 'uploads/dribbling-thesis.jpg', 'uploads/bluelocknagi.jpg', 'uploads/Poker.webp', 'uploads/balatro.avif', 'uploads/slaythespire.avif', 'uploads/beat-saber-5.webp', 'uploads/superhot-vr.jpg'].map((s) => { const im = new Image(); im.src = s; if (im.decode) im.decode().catch(() => {}); return im; });
+    this._preloadedImgs = ['uploads/Aglaea.png', 'uploads/work-in-progress.png', 'uploads/nagi_art.png', 'uploads/Camellya_WuWa-966aa6fd.png', 'uploads/Light_Study-b23b4515.png', 'uploads/berkeley-photo1.jpg', 'uploads/berkeley-photo2.jpg', 'uploads/SF Night.jpg', 'uploads/Baskin Robin Skies.JPG', 'uploads/queensgambit.webp', 'uploads/thementalist-21cc6558.webp', 'uploads/bettercallsaul-8c3e90b6.webp', 'uploads/rickandmorty-5911fe49.jpg', 'uploads/severance-7d59f383.jpg', 'uploads/arcane-6c763693.jpg', 'uploads/frieren.jpg', 'uploads/wordle solver.png', 'uploads/maxverstappengp.webp', 'uploads/rb16b.webp', 'uploads/1988mclaren.webp', 'uploads/haaland.png', 'uploads/mitoma_getty.jpg', 'uploads/dribbling-thesis.jpg', 'uploads/bluelocknagi.jpg', 'uploads/Poker.webp', 'uploads/balatro.avif', 'uploads/slaythespire.avif', 'uploads/beat-saber-5.webp', 'uploads/superhot-vr.jpg', 'uploads/katsu.png', 'uploads/smiley frittata-98dda2fe.png', 'uploads/pasta-500fab1d.png', 'uploads/burger-6c5120ad.png', 'uploads/lu rou fan-f9052b88.jpg', 'uploads/tiramisu-51ab2f94.png', 'uploads/creme brulee-79c04513.png'].map((s) => { const im = new Image(); im.src = s; if (im.decode) im.decode().catch(() => {}); return im; });
+    // Escape closes the image lightbox
     this._onKey = (e) => { if (e.key === 'Escape' && this.state.lightbox) this.onCloseLightbox(); };
     window.addEventListener('keydown', this._onKey);
     setTimeout(() => this._paintPills(), 0);
@@ -207,6 +208,7 @@ class Component extends DCLogic {
       const n = carTrail.length;
       if (n > 2) {
         ctx.strokeStyle = pal.accent;
+        // one continuous curve smoothed through the points (quadratic via midpoints)
         for (let i = 2; i < n; i++) {
           const t = i / n;
           ctx.globalAlpha = t * 0.4 * Math.min(1, car.speed / 3);
@@ -241,9 +243,9 @@ class Component extends DCLogic {
     const updateBall = () => {
       if (ball.shot > 0) {
         // powered homing corner kick — curls toward the goal mouth
-        const dx = (w + 8) - ball.x, dy = h / 2 - ball.y, d = Math.hypot(dx, dy) || 1, spd = 6;
-        ball.vx += ((dx / d * spd) - ball.vx) * 0.04;
-        ball.vy += ((dy / d * spd) - ball.vy) * 0.04;
+        const dx = (w + 8) - ball.x, dy = h / 2 - ball.y, d = Math.hypot(dx, dy) || 1, spd = 9.5;
+        ball.vx += ((dx / d * spd) - ball.vx) * 0.07;
+        ball.vy += ((dy / d * spd) - ball.vy) * 0.07;
         ball.vx *= 0.995; ball.vy *= 0.995; ball.shot--;
       } else {
         ball.vx *= 0.976; ball.vy *= 0.976;
@@ -262,7 +264,7 @@ class Component extends DCLogic {
       }
       // speed scales with the car, capped (except during a powered corner kick)
       const bs = Math.hypot(ball.vx, ball.vy); if (ball.shot <= 0 && bs > 9) { ball.vx = ball.vx / bs * 9; ball.vy = ball.vy / bs * 9; }
-      else if (ball.shot > 0 && bs > 6.5) { ball.vx = ball.vx / bs * 6.5; ball.vy = ball.vy / bs * 6.5; }
+      else if (ball.shot > 0 && bs > 10.5) { ball.vx = ball.vx / bs * 10.5; ball.vy = ball.vy / bs * 10.5; }
       ball.x += ball.vx; ball.y += ball.vy;
       const r = ball.r;
       if (ball.x < r) { ball.x = r; ball.vx *= -0.72; }
@@ -800,7 +802,7 @@ class Component extends DCLogic {
     b.y = Math.min(Math.max(b.y, r + 40), h - r - 40);
     // launch angled off-target; the homing in updateBall curls it into the mouth
     const ang = Math.atan2(ty - b.y, tx - b.x) + (b.y > ty ? -1 : 1) * 0.7;
-    b.vx = Math.cos(ang) * 6; b.vy = Math.sin(ang) * 6; b.shot = 300;
+    b.vx = Math.cos(ang) * 9.5; b.vy = Math.sin(ang) * 9.5; b.shot = 300;
   }
 
   _setCorner(on) {
@@ -885,6 +887,7 @@ class Component extends DCLogic {
   onCloseProject = () => { this.setState({ selected: null }); document.body.style.overflow = ''; };
   openLightbox = (item) => { this.setState({ lightbox: item }); document.body.style.overflow = 'hidden'; };
   onCloseLightbox = () => { this.setState({ lightbox: null }); document.body.style.overflow = ''; };
+  // scroll to the CS 184 Art Competition section, resting so the decorative grass begins at the bottom edge
   scrollToArtGrass = () => {
     const g = this._grassCv;
     if (!g) { const el = document.getElementById('projects'); if (el) window.scrollTo({ top: el.getBoundingClientRect().bottom + window.scrollY - window.innerHeight, behavior: 'smooth' }); return; }
@@ -940,7 +943,33 @@ class Component extends DCLogic {
   _tags = ['Web App','Computer Vision','Mixed Reality','CLI Tool','ML / Data','Robotics','Systems','Game','Mobile','API'];
   _techPool = [['React','TypeScript','Node'],['Python','PyTorch','OpenCV'],['Unity','C#','ARKit'],['Go','Postgres','Docker'],['Three.js','WebGL','GLSL'],['Swift','CoreML','Metal'],['Rust','WASM'],['C++','ROS','Eigen']];
 
-  _projectImgs = { Personal: { 4: 'uploads/anchor-app.png' } };
+  _projectImgs = {
+    Personal: { 0: 'uploads/wordle solver.png', 4: 'uploads/anchor-app.png' },
+    Berkeley: {
+      5: ['uploads/cloth simulation.png', 'uploads/custom shader.png'],
+      6: 'uploads/rasterizer.png',
+      7: 'uploads/raytracing.png',
+      8: ['uploads/bezier.png', 'uploads/3dmesh.png'],
+    },
+  };
+  _projectDetails = {
+    Personal: { 0: 'Two kinds of intelligence race to crack the daily Wordle: an AI algorithm using genetic evolution population that learns better guessing strategies generation over generation, and an information-theory solver that picks the most informative word each turn using entropy. Includes a play-vs-AI mode, a solver assistant, an evolution lab, and side-by-side solver comparison.', 4: 'Anchor: An ADHD-friendly, minimalistic daily planner, focus timer, and journal with local memory storage. Web App.' },
+    Berkeley: {
+      5: 'A real-time cloth simulator built on a mass-spring model with structural, shearing, and bending constraints, integrated with Verlet integration and collision handling against spheres and planes. Finished with a set of custom GLSL shaders including diffuse, Blinn-Phong, texture, bump and displacement mapping, and an environment-mapped mirror.',
+      6: 'A software rasterizer that draws triangles from scratch: point-in-triangle sampling, supersampling antialiasing, barycentric coordinate interpolation, and pixel-sampled texture mapping with mipmaps and level sampling.',
+      7: 'A physically-based ray tracer with ray–scene intersection accelerated by a bounding volume hierarchy (BVH), direct and global illumination, and adaptive sampling that concentrates rays on the noisiest regions of the image.',
+      8: "Bézier curves and surfaces via de Casteljau's algorithm, plus triangle-mesh editing on a half-edge data structure: area-weighted vertex normals, edge flip and split operations, and Loop subdivision for mesh upsampling.",
+    },
+  };
+  _projectLinks = {
+    Personal: { 0: { label: 'Web App', href: 'https://sane24.github.io/NYT-Wordle-Solver-AI/' }, 4: { label: 'Web App', href: 'https://sane24.github.io/Anchor-Journal-Planner/' } },
+    Berkeley: {
+      5: { label: 'Project Page', href: 'https://cal-cs184-student.github.io/hw-webpages-insomnia-ink/hw4/index.html' },
+      6: { label: 'Project Page', href: 'https://cal-cs184-student.github.io/hw-webpages-insomnia-ink/hw1/index.html' },
+      7: { label: 'Project Page', href: 'https://cal-cs184-student.github.io/hw-webpages-insomnia-ink/hw3/index.html' },
+      8: { label: 'Project Page', href: 'https://cal-cs184-student.github.io/hw-webpages-insomnia-ink/hw2/index.html' },
+    },
+  };
 
   _makeProjects(section, prefix, titles, tags, techs) {    return Array.from({ length: (titles ? titles.length : 12) }, (_, i) => {
       const num = String(i + 1).padStart(2, '0');
@@ -952,9 +981,12 @@ class Component extends DCLogic {
         tag: (tags && tags[i]) || this._tags[i % this._tags.length],
         bg: this._bgs[i % this._bgs.length],
         tech: (techs && techs[i]) || this._techPool[i % this._techPool.length],
-        detail: 'Placeholder description.',
+        projectHref: (this._projectLinks[section] && this._projectLinks[section][i] && this._projectLinks[section][i].href) || '#',
+        detail: (this._projectDetails[section] && this._projectDetails[section][i]) || 'Placeholder description.',
+        link: (this._projectLinks[section] && this._projectLinks[section][i]) || null,
         shotId: prefix + '-shot-' + num,
-        img: (this._projectImgs[section] && this._projectImgs[section][i]) || undefined,
+        img: (function(raw){ return raw ? (Array.isArray(raw) ? raw[0] : raw) : undefined; })(this._projectImgs[section] && this._projectImgs[section][i]),
+        imgs: (function(raw){ return raw ? (Array.isArray(raw) ? raw : [raw]) : undefined; })(this._projectImgs[section] && this._projectImgs[section][i]),
         over: this.cardOver,
         out: this.cardOut,
       };
@@ -1150,7 +1182,7 @@ class Component extends DCLogic {
     const isLeft = cvel.getBoundingClientRect().left < (window.innerWidth || 1200) / 2;
     const inward = isLeft ? 1 : -1;
     const FC = [pal.accent, '#E8663A', '#C24DD0', '#E8B93A', '#25A567'];
-    if (!cvel._fn || cvel._fw !== w || cvel._fh !== h || cvel._fv !== 3) { cvel._fn = Array.from({ length: 5 }, (_, i) => ({ off: 2 + i * 13.75, ph: i * 1.7, curve: 0.6 + (i % 3) * 0.35, tall: 0.84 + (i % 2) * 0.14, seed: (i * 3) % FC.length })); cvel._fw = w; cvel._fh = h; cvel._fv = 3; }
+    if (!cvel._fn || cvel._fw !== w || cvel._fh !== h || cvel._fv !== 4) { cvel._fn = Array.from({ length: 5 }, (_, i) => ({ off: 2 + i * 16.5, ph: i * 1.7, curve: 0.6 + (i % 3) * 0.35, tall: 0.84 + (i % 2) * 0.14, seed: (i * 3) % FC.length })); cvel._fw = w; cvel._fh = h; cvel._fv = 4; }
     const seg = Math.min(42, Math.max(16, Math.round(h / 80)));
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     const leaf = (L, W) => { ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(L * 0.5, -W, L, 0); ctx.quadraticCurveTo(L * 0.5, W, 0, 0); ctx.fill(); const g = ctx.globalAlpha; ctx.globalAlpha = g * 0.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(L * 0.9, 0); ctx.stroke(); ctx.globalAlpha = g; };
@@ -1264,13 +1296,13 @@ class Component extends DCLogic {
 
   renderVals() {
     const dark = this.state.dark;
-    const personalTitles = ['Haptic Navigation Gloves for BLV Users', 'NYT Wordle Solver AI Bot', 'Real-Time Astigmatism & Myopia Vision Simulator', 'Mem: NeRF-Powered 3D Memory Capture', 'Anchor: Journal & Planner', 'Self-driving F1 Racing Simulator', 'Amazon Alexa Audio Style Transfer', 'Moodnotes: Moodboards + Notes', 'SoundSync: Emotion-Based Music Player and Recommender', 'Better YouTube Translate Extension', 'Offline AR Maps App'];
-    const personalTags = ['Robotics / Accessibility Research', 'Information Theory / AI', 'Vision Sim', 'Graphics Research', 'Web App', 'Graphics / Simulation', 'Audio ML', 'Web App', 'Music ML', 'Browser Extension', 'Mixed Reality'];
-    const berkeleyTitles = ['Celestial Phenomena Simulator', 'Secure File Sharing System', 'Multi-Agent Search', 'Pacman Reinforcement Learning', 'Breaching a Vulnerable Web Server', 'Cloth Simulation', 'Rasterizer', 'Ray Tracing', '3D Graphics with Bézier Curves', 'Ants vs Bees (Plants vs Zombies inspired game)', 'Rooms & Hallways (2D Color Maze)', 'Scheme Interpreter'];
+    const personalTitles = ['NYT Wordle Solver AI', 'Haptic Navigation Gloves for BLV Users', 'Real-Time Astigmatism & Myopia Vision Simulator', 'Mem: NeRF-Powered 3D Memory Capture', 'Anchor: Journal & Planner', 'Self-driving F1 Racing Simulator', 'Amazon Alexa Audio Style Transfer', 'Moodnotes: Moodboards + Notes', 'SoundSync: Emotion-Based Music Player and Recommender', 'Better YouTube Translate Extension', 'Offline AR Maps App'];
+    const personalTags = ['Information Theory / AI', 'Robotics / Accessibility Research', 'Vision Sim', 'Graphics Research', 'Web App', 'Graphics / Simulation', 'Audio ML', 'Web App', 'Music ML', 'Browser Extension', 'Mixed Reality'];
+    const berkeleyTitles = ['Celestial Phenomena Simulator', 'Secure File Sharing System', 'Multi-Agent Search', 'Pacman Reinforcement Learning', 'Breaching a Vulnerable Web Server', 'Cloth Simulation and Shaders', 'Rasterizer and Texture Mapping', 'Ray Tracing and Adaptive Sampling', '3D Graphics with Bézier Curves', 'Ants vs Bees (Plants vs Zombies inspired game)', 'Rooms & Hallways (2D Color Maze)', 'Scheme Interpreter'];
     const berkeleyTags = ['Simulation', 'Security', 'AI / Search', 'ML', 'Security', 'Physics Sim', 'Graphics', 'Graphics', '3D Graphics', 'Game', 'Game', 'Interpreter'];
     const personalTech = [
-      ['C++', 'ESP32', 'Haptics', 'Arduino'],
       ['Python', 'NumPy', 'Information Theory'],
+      ['C++', 'ESP32', 'Haptics', 'Arduino'],
       ['Three.js', 'WebGL', 'GLSL'],
       ['PyTorch', 'NeRF', 'Python', 'CUDA'],
       ['React', 'TypeScript', 'Firebase'],
@@ -1327,10 +1359,10 @@ class Component extends DCLogic {
     });
 
     const industry = [
-      { company: 'Live150.ai', role: 'AI Engineer Intern · Computer Vision & AI Agent', period: 'Summer 2025', slotId: 'logo-1', logo: 'uploads/live150.png' },
-      { company: 'SkyIT Services', role: 'Software Developer Intern · Full-Stack Platform', period: 'Summer 2024', slotId: 'logo-2', logo: 'uploads/skyit-services.png' },
-      { company: 'STARLab', role: 'Design Engineer Intern · Software Simulation', period: 'Summer 2021', slotId: 'logo-3', logo: 'uploads/starlab.png' },
-    ].map((j) => ({ ...j, ...mkHover(), logoRef: (el) => { if (el && !el.src.endsWith(j.logo)) el.src = j.logo; } }));
+      { company: 'Live150.ai', role: 'AI Engineer Intern · Computer Vision & AI Agent', period: 'Summer 2025', slotId: 'logo-1', logo: 'uploads/live150.png', desc: 'Developed computer-vision image scanning, and an AI voice agent for a healthcare app, designing the human–AI conversation flows and cloud deployment.' },
+      { company: 'SkyIT Services', role: 'Software Developer Intern · Full-Stack Platform', period: 'Summer 2024', slotId: 'logo-2', logo: 'uploads/skyit-services.png', desc: 'Built a full-stack web application and dashboard delivering real-time fleet and asset data for aviation companies, with live messaging and data sync.' },
+      { company: 'STARLab', role: 'Design Engineer Intern · Software Simulation', period: 'Summer 2021', slotId: 'logo-3', logo: 'uploads/starlab.png', desc: 'Designed a rocket motor static test pad and its avionics, and validated satellite subsystems with simulation, test harnesses, and replay tools.' },
+    ].map((j) => { const parts = j.role.split(' · '); const roleTitle = parts[0]; const roleRest = parts.length > 1 ? ' · ' + parts.slice(1).join(' · ') : ''; return { ...j, roleTitle, roleRest, ...mkHover(), logoRef: (el) => { if (el && !el.src.endsWith(j.logo)) el.src = j.logo; } }; });
 
     const socials = [
       { label: 'LinkedIn', href: '#', icon: 'IN' },
@@ -1371,24 +1403,25 @@ class Component extends DCLogic {
       acronym,
       ...(() => {
         const hd = [
-          { name: 'Digital art', kind: 'Artwork', caps: ['Character: Aglaea  ·  Background: 3D modeled environment', 'Work in Progress Art, Reze from Chainsaw Man'], imgs: ['uploads/Aglaea.png', 'uploads/work-in-progress.png'] },
+          { name: 'Digital art', kind: 'Artwork', layout: 'tworow', row1: 3, caps: ['Character: Aglaea  ·  Background: 3D modeled environment', 'Work in Progress Art, Reze from Chainsaw Man', 'Nagi Seishirō, Blue Lock', 'Camellya, Wuthering Waves', 'Light Study'], imgs: ['uploads/Aglaea.png', 'uploads/work-in-progress.png', 'uploads/nagi_art.png', 'uploads/Camellya_WuWa-966aa6fd.png', 'uploads/Light_Study-b23b4515.png'] },
           { name: '3D modeling', kind: 'Render', caps: [] },
           { name: 'Formula 1', kind: 'Photo', caps: ['Max Verstappen winning F1 Italian Grand Prix', 'Red Bull RB16B', '1988 McLaren MP4'], imgs: ['uploads/maxverstappengp.webp', 'uploads/rb16b.webp', 'uploads/1988mclaren.webp'] },
           { name: 'Soccer', kind: 'Photo', layout: 'soccer', caps: ['Erling Haaland', 'Blue Lock: Episode Nagi', "Mitoma's Dribbling Thesis paper", 'Kaoru Mitoma: the man who studied dribbling'], imgs: ['uploads/haaland.png', 'uploads/bluelocknagi.jpg', 'uploads/dribbling-thesis.jpg', 'uploads/mitoma_getty.jpg'] },
           { name: 'Card games', kind: 'Photo', caps: ["Poker / Texas Hold'em", 'Slay the Spire', 'Balatro: Roguelike Card Game'], imgs: ['uploads/Poker.webp', 'uploads/slaythespire.avif', 'uploads/balatro.avif'] },
           { name: 'VR games', kind: 'Screenshot', caps: ['Beat Saber', 'Superhot VR'], imgs: ['uploads/beat-saber-5.webp', 'uploads/superhot-vr.jpg'] },
-          { name: 'Photography', kind: 'Photo', caps: ['Berkeley Libraries', 'Night House'], imgs: ['uploads/berkeley-photo1.jpg', 'uploads/berkeley-photo2.jpg'] },
-          { name: 'Cooking', kind: 'Dish', caps: ['Katsu Curry!', 'Cheeseburgers!', 'Tiramisu'] },
+          { name: 'Photography', kind: 'Photo', layout: 'tworow', row1: 2, maxW: 'clamp(320px, 82%, 800px)', caps: ['Berkeley Libraries', 'Night House', 'SF at Night', 'Baskin-Robbins Skies'], imgs: ['uploads/berkeley-photo1.jpg', 'uploads/berkeley-photo2.jpg', 'uploads/SF Night.jpg', 'uploads/Baskin Robin Skies.JPG'] },
+          { name: 'TV Shows', kind: 'Poster', layout: 'tworow', row1: 3, caps: ['Better Call Saul', 'The Mentalist', "The Queen's Gambit", 'Rick and Morty', 'Severance', 'Arcane', 'Frieren: Beyond Journey\'s End'], imgs: ['uploads/bettercallsaul-8c3e90b6.webp', 'uploads/thementalist-21cc6558.webp', 'uploads/queensgambit.webp', 'uploads/rickandmorty-5911fe49.jpg', 'uploads/severance-7d59f383.jpg', 'uploads/arcane-6c763693.jpg', 'uploads/frieren.jpg'] },
+          { name: 'Cooking', kind: 'Dish', caps: ['Katsu Curry!', 'Smiley Frittata :)', 'Chicken & Broccoli Pasta', 'Homemade Cheeseburger', 'Lu Rou Fan (Braised Pork Rice)', 'Scuffed Tiramisu', 'Glass Crème Brûlée'], imgs: ['uploads/katsu.png', 'uploads/smiley frittata-98dda2fe.png', 'uploads/pasta-500fab1d.png', 'uploads/burger-6c5120ad.png', 'uploads/lu rou fan-f9052b88.jpg', 'uploads/tiramisu-51ab2f94.png', 'uploads/creme brulee-79c04513.png'] },
         ];
         const open = this.state.openHobby == null ? -1 : this.state.openHobby;
         const hov = this.state.hoverHobby == null ? -1 : this.state.hoverHobby;
         const hobbies = hd.map((h, i) => { const active = i === open, hovered = i === hov; return { name: h.name, toggle: () => this.setState((s) => ({ openHobby: s.openHobby === i ? null : i })), enter: () => this.setState({ hoverHobby: i }), leave: () => this.setState((s) => (s.hoverHobby === i ? { hoverHobby: null } : {})), bg: active ? 'var(--accent)' : (hovered ? 'var(--soft)' : 'var(--bg2)'), fg: active ? 'var(--accent-ink)' : (hovered ? 'var(--accent)' : 'var(--ink)'), border: (active || hovered) ? 'var(--accent)' : 'var(--line)' }; });
         const cur = open >= 0 ? hd[open] : null;
-        const IMG_AR = { 'uploads/Aglaea.png': 1840 / 1055, 'uploads/work-in-progress.png': 2048 / 2732, 'uploads/berkeley-photo1.jpg': 2880 / 2160, 'uploads/berkeley-photo2.jpg': 1215 / 1620, 'uploads/maxverstappengp.webp': 1200 / 960, 'uploads/rb16b.webp': 1024 / 618, 'uploads/1988mclaren.webp': 1280 / 843, 'uploads/haaland.png': 2036 / 1220, 'uploads/mitoma_getty.jpg': 780 / 520, 'uploads/dribbling-thesis.jpg': 724 / 1028, 'uploads/bluelocknagi.jpg': 1000 / 1500, 'uploads/Poker.webp': 2121 / 1414, 'uploads/balatro.avif': 1920 / 1080, 'uploads/slaythespire.avif': 1920 / 1080, 'uploads/beat-saber-5.webp': 1621 / 912, 'uploads/superhot-vr.jpg': 1920 / 1080 };
+        const IMG_AR = { 'uploads/Aglaea.png': 1840 / 1055, 'uploads/work-in-progress.png': 2048 / 2732, 'uploads/nagi_art.png': 960 / 706, 'uploads/Camellya_WuWa-966aa6fd.png': 5100 / 3300, 'uploads/Light_Study-b23b4515.png': 2048 / 2732, 'uploads/berkeley-photo1.jpg': 2880 / 2160, 'uploads/berkeley-photo2.jpg': 1215 / 1620, 'uploads/SF Night.jpg': 1179 / 1560, 'uploads/Baskin Robin Skies.JPG': 1179 / 2096, 'uploads/queensgambit.webp': 2559 / 1439, 'uploads/thementalist-21cc6558.webp': 1400 / 2100, 'uploads/bettercallsaul-8c3e90b6.webp': 985 / 739, 'uploads/rickandmorty-5911fe49.jpg': 1280 / 1920, 'uploads/severance-7d59f383.jpg': 303 / 350, 'uploads/arcane-6c763693.jpg': 1000 / 1481, 'uploads/frieren.jpg': 1449 / 2048, 'uploads/maxverstappengp.webp': 1200 / 960, 'uploads/rb16b.webp': 1024 / 618, 'uploads/1988mclaren.webp': 1280 / 843, 'uploads/haaland.png': 2036 / 1220, 'uploads/mitoma_getty.jpg': 780 / 520, 'uploads/dribbling-thesis.jpg': 724 / 1028, 'uploads/bluelocknagi.jpg': 1000 / 1500, 'uploads/Poker.webp': 2121 / 1414, 'uploads/balatro.avif': 1920 / 1080, 'uploads/slaythespire.avif': 1920 / 1080, 'uploads/beat-saber-5.webp': 1621 / 912, 'uploads/superhot-vr.jpg': 1920 / 1080, 'uploads/katsu.png': 1179 / 1542, 'uploads/smiley frittata-98dda2fe.png': 1179 / 877, 'uploads/pasta-500fab1d.png': 1179 / 1475, 'uploads/burger-6c5120ad.png': 1179 / 1278, 'uploads/lu rou fan-f9052b88.jpg': 2160 / 2567, 'uploads/tiramisu-51ab2f94.png': 955 / 768, 'uploads/creme brulee-79c04513.png': 1238 / 1512 };
         const openHobbyImages = cur ? cur.caps.map((c, j) => {
           const img = cur.imgs ? cur.imgs[j] : null;
           const ar = img ? (IMG_AR[img] || 1.4) : null;
-          const bespoke = cur.layout === 'soccer';
+          const bespoke = cur.layout === 'soccer' || cur.name === 'Cooking' || cur.layout === 'tworow';
           let capEl = null;
           return {
             cap: c, kind: cur.kind, img, hasImg: !!img, noImg: !img,
@@ -1402,21 +1435,32 @@ class Component extends DCLogic {
             imgRef: (el) => {
               if (!el) return;
               if (img && el.getAttribute('src') !== img) el.src = img;
-              if (bespoke) return;
+              if (bespoke) return; // bespoke soccer layout sizes its own cells
               const ap = () => { if (el.naturalWidth && el.parentElement) { const r = el.naturalWidth / el.naturalHeight; const cd = el.parentElement; cd.style.flexGrow = r; cd.style.flexBasis = Math.round(r * 190) + 'px'; cd.style.aspectRatio = String(r); } };
               if (el.complete && el.naturalWidth) ap(); else el.onload = ap;
             },
           };
         }) : null;
+        // Soccer uses a bespoke magazine layout (Haaland+Blue Lock top, Mitoma bottom, thesis spanning both — exact aspect ratios, no crop/whitespace)
         const soccerMode = !!(cur && cur.layout === 'soccer' && openHobbyImages && openHobbyImages.length === 4);
         const soccer = soccerMode ? { haaland: openHobbyImages[0], bluelock: openHobbyImages[1], thesis: openHobbyImages[2], mitoma: openHobbyImages[3] } : null;
+        // Cooking uses a fixed two-row layout (top row + bottom row) that never reflows with viewport width
+        const cookMode = !!(cur && openHobbyImages && ((cur.name === 'Cooking' && openHobbyImages.length > 4) || (cur.layout === 'tworow' && openHobbyImages.length > (cur.row1 || 99))));
+        const cookSplit = cookMode ? (cur.layout === 'tworow' ? cur.row1 : Math.ceil(openHobbyImages.length / 2)) : 0;
+        const cookRow1 = cookMode ? openHobbyImages.slice(0, cookSplit) : [];
+        const cookRow2 = cookMode ? openHobbyImages.slice(cookSplit) : [];
+        // row 2 fills only its natural width (3 pics at row-1's height), not stretched to the 4-pic row
+        const _s1 = cookRow1.reduce((a, im) => a + (parseFloat(im.ar) || 1), 0) || 1;
+        const _s2 = cookRow2.reduce((a, im) => a + (parseFloat(im.ar) || 1), 0) || 1;
+        const cookRow2Width = cookMode ? 'calc(' + (_s2 / _s1).toFixed(4) + ' * (100% - ' + ((cookRow1.length - 1) * 14) + 'px) + ' + ((cookRow2.length - 1) * 14) + 'px)' : '100%';
         let galleryMaxW, galleryWrap = 'wrap';
         const nImg = openHobbyImages ? openHobbyImages.length : 0;
         if (soccerMode) { galleryMaxW = 'clamp(320px, 82%, 920px)'; }
+        else if (cookMode) { galleryMaxW = cur.maxW || 'clamp(320px, 92%, 900px)'; }
         else if (nImg >= 4) { galleryMaxW = 'clamp(320px, 60%, 660px)'; galleryWrap = 'wrap'; }
         else if (nImg === 3) { galleryMaxW = 'clamp(320px, 92%, 1120px)'; galleryWrap = 'nowrap'; }
         else { galleryMaxW = 'clamp(320px, 66%, 860px)'; galleryWrap = 'wrap'; }
-        return { hobbies, openHobbyImages, openHobbyName: cur ? cur.name : '', galleryMaxW, galleryWrap, soccerMode, soccer, genericMode: !!openHobbyImages && !soccerMode, showArtLink: !!(cur && cur.name === '3D modeling'), scrollToArtGrass: this.scrollToArtGrass };
+        return { hobbies, openHobbyImages, openHobbyName: cur ? cur.name : '', galleryMaxW, galleryWrap, soccerMode, soccer, cookMode, cookRow1, cookRow2, cookRow2Width, genericMode: !!openHobbyImages && !soccerMode && !cookMode, showArtLink: !!(cur && cur.name === '3D modeling'), scrollToArtGrass: this.scrollToArtGrass };
       })(),
       industry,
       personal, berkeley,
@@ -1491,6 +1535,7 @@ Then, I applied a glass-like shader to make the models semi-transparent, allowin
       socials,
       selected: this.state.selected,
       selectedImgRef: (el) => { const s = this.state.selected; if (el && s && s.img && el.getAttribute('src') !== s.img) el.src = s.img; },
+      selectedImgs: (() => { const s = this.state.selected; return (s && s.imgs) ? s.imgs.map((src) => ({ src, ref: (el) => { if (el && el.getAttribute('src') !== src) el.src = src; } })) : []; })(),
       lightbox: this.state.lightbox,
       onCloseLightbox: this.onCloseLightbox,
       lightboxImgRef: (el) => { const b = this.state.lightbox; if (el && b && b.img && el.getAttribute('src') !== b.img) el.src = b.img; },
