@@ -1422,7 +1422,7 @@ class Component extends DCLogic {
       personal, berkeley,
       projectCount: '24 total',
       skills: [
-        { title: 'Languages', items: ['Python','TypeScript / JavaScript','Java','C++','C','C#','Swift','Go','Rust','R','SQL','HTML/CSS'] },
+        { title: 'Languages', items: ['Python','TypeScript / JavaScript','Java','C++','C','C#','Swift','Rust','R','SQL','HTML/CSS'] },
         { title: 'Frameworks & Tools', items: ['React / Next.js','PyTorch / OpenCV','Unity / ARKit','NodeJS','Docker','Three.js / WebGL','Git / Linux','Flask','MongoDB','Firebase','AWS','Kubernetes'] },
       ],
       leadership: [
