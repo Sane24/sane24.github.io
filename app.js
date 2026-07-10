@@ -1365,8 +1365,8 @@ class Component extends DCLogic {
     ].map((j) => { const parts = j.role.split(' · '); const roleTitle = parts[0]; const roleRest = parts.length > 1 ? ' · ' + parts.slice(1).join(' · ') : ''; return { ...j, roleTitle, roleRest, ...mkHover(), logoRef: (el) => { if (el && !el.src.endsWith(j.logo)) el.src = j.logo; } }; });
 
     const socials = [
-      { label: 'LinkedIn', href: '#', icon: 'IN' },
-      { label: 'Email', href: 'mailto:sam@example.com', icon: '@' },
+      { label: 'LinkedIn', href: 'lu', icon: 'https://www.linkedin.com/in/sampurn-/' },
+      { label: 'Email', href: 'mailto:sampurn.bhowmick@berkeley', icon: '@' },
       { label: 'GitHub', href: 'https://github.com/sane24', icon: 'GH' },
       { label: 'Résumé', href: '#', icon: '↗' },
     ].map((s) => ({
